@@ -135,7 +135,8 @@ def main():
     parser.add_argument(
         '-e', '--email', default=os.environ.get('STORE_EMAIL'))
     parser.add_argument(
-        '-s', '--store', default=os.environ.get('STORE_ENV', 'staging'))
+        '-s', '--store', default=os.environ.get('STORE_ENV', 'staging'),
+        choices=['staging', 'production'])
     parser.add_argument(
         '-p', '--permission', nargs="*", dest='permissions',
         choices=['package_access', 'package_upload'])
