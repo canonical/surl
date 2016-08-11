@@ -88,6 +88,7 @@ def get_store_authorization(email, permissions=None, store_env=None):
     Get a permissions macaroon from SCA and discharge it in SSO.
     """
     headers = DEFAULT_HEADERS.copy()
+    # Request a SCA root macaroon.
     sca_data = {
         'permissions': permissions or ['package_access'],
     }
@@ -100,13 +101,16 @@ def get_store_authorization(email, permissions=None, store_env=None):
         c for c in Macaroon.deserialize(root).third_party_caveats()
         if c.location == CONSTANTS[store_env]['sso_location']
     ]
-
+    # Request a SSO discharge macaroon.
     sso_data = {
         'email': email,
         'password': getpass.getpass('Password for {}: '.format(email)),
-        'otp': input('2FA (if enabled): '),
         'caveat_id': caveat.caveat_id,
     }
+    # OTP/2FA is optional.
+    otp = input('2FA (if enabled): ')
+    if otp:
+        sso_data.update({'otp': otp})
     response = requests.request(
         url='{}/api/v2/tokens/discharge'.format(CONSTANTS[store_env]['sso_base_url']),
         method='POST', json=sso_data, headers=headers)

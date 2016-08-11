@@ -3,12 +3,12 @@ version: 0.1
 summary: Ubuntu Store API thin wrapper.
 description: |
   Utility for easying authorization for the Ubuntu Store API.
-confinement: devmode # ldconfig ??
+confinement: strict
 
 apps:
   surl:
     command: usr/bin/python3 $SNAP/usr/bin/surl.py
-    plugs: [network]
+    plugs: [network-bind, network]
 
 parts:
   surl:
