@@ -127,7 +127,9 @@ def main():
         description='S(tore)URL ...'
     )
     parser.add_argument('-v', '--debug', action='store_true')
-    parser.add_argument('-a', '--auth')
+    parser.add_argument(
+        '-a', '--auth', metavar='IDENT',
+        help='Authorization identifier (saving or reading).')
 
     parser.add_argument(
         '-e', '--email', default=os.environ.get('STORE_EMAIL'))
@@ -152,9 +154,9 @@ def main():
         requests_log.setLevel(logging.DEBUG)
         requests_log.propagate = True
 
-
-    if args.auth is not None and os.path.exists(args.auth):
-        with open(os.path.expanduser(args.auth)) as fd:
+    auth_dir = os.path.abspath(os.environ.get('SNAP_USER_DATA', '.'))
+    if args.auth and os.path.exists(os.path.join(auth_dir, args.auth)):
+        with open(os.path.join(auth_dir, args.auth)) as fd:
             authorization = fd.read()
     else:
         if args.email is None:
@@ -162,8 +164,8 @@ def main():
             return 1
         authorization = get_store_authorization(
             args.email, args.permissions, args.store)
-        if args.auth is not None:
-            with open(os.path.expanduser(args.auth), 'w') as fd:
+        if args.auth:
+            with open(os.path.join(auth_dir, args.auth), 'w') as fd:
                 fd.write(authorization)
 
     headers = DEFAULT_HEADERS.copy()
