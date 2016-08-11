@@ -4,16 +4,17 @@ S(tore)URL ....
 
 Authorising the client::
 
-  $ surl -e foo@bar.com -s production surl -a .auth
+  $ surl -e foo@bar.com -s production surl -a foo-prod
 
   OR
 
-  $ STORE_EMAIL=foo@bar.com STORE_ENV=production surl -a .auth
+  $ STORE_EMAIL=foo@bar.com STORE_ENV=production surl -a foo-prod
   Password for foo@bar.com: *****
   2FA (if enabled):
   ...
 
-That will record authorization information in `.auth` path.
+That will record authorization information in `$SNAP_USER_COMMON` if
+it's a snap or local diretory if run from source.
 (CAREFULL, IT WILL BE IN PLAINTEXT)
 
 User '-p package_access package_upload' switch to create more capable
@@ -22,7 +23,7 @@ authorizations.
 Then use it for performing actions on the Store API (defaults to
 ACL verification)::
 
-  $ ./surl.py -a .auth | jq .
+  $ ./surl.py -a foo-prod | jq .
   {
     "account": {
       "openid": "*****",
@@ -40,7 +41,7 @@ ACL verification)::
 
 Registering a new snap name::
 
-  $ ./surl.py -a .auth -d'{"snap_name": "surl"}' \
+  $ ./surl.py -a foo-prod -d'{"snap_name": "surl"}' \
     https://myapps.developer.ubuntu.com/dev/api/register-name/ | jq .
   {
     "snap_id": "LpV8761EjlAPqeXxfYhQvpSWgpxvEWpN"
@@ -154,7 +155,7 @@ def main():
         requests_log.setLevel(logging.DEBUG)
         requests_log.propagate = True
 
-    auth_dir = os.path.abspath(os.environ.get('SNAP_USER_DATA', '.'))
+    auth_dir = os.path.abspath(os.environ.get('SNAP_USER_COMMON', '.'))
     if args.auth and os.path.exists(os.path.join(auth_dir, args.auth)):
         with open(os.path.join(auth_dir, args.auth)) as fd:
             authorization = fd.read()
@@ -162,8 +163,12 @@ def main():
         if args.email is None:
             print('Needs "-e <email>" or $STORE_EMAIL.')
             return 1
-        authorization = get_store_authorization(
-            args.email, args.permissions, args.store)
+        try:
+            authorization = get_store_authorization(
+                args.email, args.permissions, args.store)
+        except:
+            print('Authorization failed! Double-check password and 2FA.')
+            return 1
         if args.auth:
             with open(os.path.join(auth_dir, args.auth), 'w') as fd:
                 fd.write(authorization)
