@@ -6,9 +6,7 @@ Ubuntu Store API thin wrapper
 
 Use `snap`:
 
-    $ snap install surl --channel edge --devmode
-
-*still working to get out of devmode ...*
+    $ snap install surl
 
 ## Usage
 
