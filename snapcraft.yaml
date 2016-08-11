@@ -1,0 +1,24 @@
+name: surl
+version: 0.1
+summary: Ubuntu Store API thin wrapper.
+description: |
+  Utility for easying authorization for the Ubuntu Store API.
+confinement: devmode # ldconfig ??
+
+apps:
+  surl:
+    command: usr/bin/python3 $SNAP/usr/bin/surl.py
+    plugs: [network]
+
+parts:
+  surl:
+    plugin: python3
+    source: git://github.com/celso-providelo/surl.git
+    stage-packages:
+      - libsodium18
+      - libsodium-dev
+    python-packages:
+      - requests
+      - pymacaroons
+    snap:
+      - -install
