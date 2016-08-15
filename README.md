@@ -26,7 +26,7 @@ Verifying credentials:
 Storing authorization:
 
     $ surl -e celso.providelo@canonical.com -s staging \
-      -p package_access package_upload -a cprov-staging-upload
+      -p package_access -p package_upload -a cprov-staging-upload
     Password for celso.providelo@canonical.com:
     2FA (if enabled): ****
     ...

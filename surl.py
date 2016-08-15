@@ -17,7 +17,7 @@ That will record authorization information in `$SNAP_USER_COMMON` if
 it's a snap or local diretory if run from source.
 (CAREFULL, IT WILL BE IN PLAINTEXT)
 
-User '-p package_access package_upload' switch to create more capable
+Use '-p package_access -p package_upload' switch to create more capable
 authorizations.
 
 Then use it for performing actions on the Store API (defaults to
@@ -138,12 +138,13 @@ def main():
         '-s', '--store', default=os.environ.get('STORE_ENV', 'staging'),
         choices=['staging', 'production'])
     parser.add_argument(
-        '-p', '--permission', nargs="*", dest='permissions',
+        '-p', '--permission', action="append", dest='permissions',
         choices=['package_access', 'package_upload'])
 
     parser.add_argument('-I', dest='print_headers', action='store_true')
+    parser.add_argument('-H', '--header', action="append", dest='headers')
     parser.add_argument(
-        '-X', '--method', default='GET', choices=['GET', 'POST'])
+        '-X', '--method', default='GET', choices=['GET', 'POST', 'PUT'])
     parser.add_argument('-d', '--data')
     parser.add_argument('url', nargs='?')
 
@@ -192,6 +193,13 @@ def main():
             data = None
             method = args.method
         headers.update({'Authorization': authorization})
+        for h in args.headers:
+            try:
+                k, v = [t.strip() for t in h.split(':')]
+            except ValueError:
+                print('Invalid header: "{}"'.format(h))
+                return 1
+            headers[k] = v
 
     response = requests.request(
         url=url, method=method, json=data, headers=headers)
