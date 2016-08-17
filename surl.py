@@ -142,7 +142,7 @@ def main():
         choices=['package_access', 'package_upload'])
 
     parser.add_argument('-I', dest='print_headers', action='store_true')
-    parser.add_argument('-H', '--header', action="append", dest='headers')
+    parser.add_argument('-H', '--header', action="append", default=[], dest='headers')
     parser.add_argument(
         '-X', '--method', default='GET', choices=['GET', 'POST', 'PUT'])
     parser.add_argument('-d', '--data')
