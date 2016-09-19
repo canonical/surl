@@ -84,7 +84,7 @@ CONSTANTS = {
 
 
 def get_store_authorization(email, permissions=None, store_env=None):
-    """Return the authorization header for Store requests.
+    """Return the serialised root and discharge macaroon.
 
     Get a permissions macaroon from SCA and discharge it in SSO.
     """
@@ -108,20 +108,35 @@ def get_store_authorization(email, permissions=None, store_env=None):
         'password': getpass.getpass('Password for {}: '.format(email)),
         'caveat_id': caveat.caveat_id,
     }
-    # OTP/2FA is optional.
-    otp = input('2FA (if enabled): ')
-    if otp:
-        sso_data.update({'otp': otp})
     response = requests.request(
         url='{}/api/v2/tokens/discharge'.format(CONSTANTS[store_env]['sso_base_url']),
         method='POST', json=sso_data, headers=headers)
+    # OTP/2FA is optional.
+    if (response.status_code == 401 and
+        response.json().get('code') == 'TWOFACTOR_REQUIRED'):
+        sso_data.update({'otp': input('Second-factor auth: ')})
+        response = requests.request(
+            url='{}/api/v2/tokens/discharge'.format(CONSTANTS[store_env]['sso_base_url']),
+            method='POST', json=sso_data, headers=headers)
     discharge = response.json()['discharge_macaroon']
 
+    return root, discharge
+
+def get_authorization_header(root, discharge):
+    """Bind root and discharge macaroons and return the authorization header."""
     bound = Macaroon.deserialize(root).prepare_for_request(
         Macaroon.deserialize(discharge))
 
     return 'Macaroon root={}, discharge={}'.format(root, bound.serialize())
 
+
+def get_refreshed_discharge(discharge, store_env):
+    headers = DEFAULT_HEADERS.copy()
+    data = {'discharge_macaroon': discharge}
+    response = requests.request(
+        url='{}/api/v2/tokens/refresh'.format(CONSTANTS[store_env]['sso_base_url']),
+        method='POST', json=data, headers=headers)
+    return response.json()['discharge_macaroon']
 
 def main():
     parser = argparse.ArgumentParser(
@@ -159,22 +174,33 @@ def main():
 
     auth_dir = os.path.abspath(os.environ.get('SNAP_USER_COMMON', '.'))
     if args.auth and os.path.exists(os.path.join(auth_dir, args.auth)):
-        with open(os.path.join(auth_dir, args.auth)) as fd:
-            authorization = fd.read()
+        auth_path = os.path.join(auth_dir, args.auth)
+        with open(auth_path) as fd:
+            try:
+                a = json.load(fd)
+                root, discharge, store_env = (a['root'], a['discharge'], a['store'])
+            except json.decoder.JSONDecodeError:
+                print('** Deprecated or Broken authentication file, '
+                      'please delete it and login again:')
+                print('  $ rm {}'.format(auth_path))
+                return 1
     else:
+        store_env = args.store
         if args.email is None:
             print('Needs "-e <email>" or $STORE_EMAIL.')
             return 1
         try:
-            authorization = get_store_authorization(
-                args.email, args.permissions, args.store)
+            root, discharge = get_store_authorization(
+                args.email, args.permissions, store_env)
         except:
             print('Authorization failed! Double-check password and 2FA.')
             return 1
         if args.auth:
             with open(os.path.join(auth_dir, args.auth), 'w') as fd:
-                fd.write(authorization)
+                a = {'root': root, 'discharge': discharge, 'store': args.store}
+                json.dump(a, fd, indent=2)
 
+    authorization = get_authorization_header(root, discharge)
     headers = DEFAULT_HEADERS.copy()
     if args.url is None:
         url = '{}/dev/api/acl/verify/'.format(CONSTANTS[args.store]['sca_base_url'])
@@ -188,7 +214,9 @@ def main():
                     data = json.load(fd)
             else:
                 data = json.loads(args.data)
-            method = 'POST'
+            method = args.method
+            if args.method == 'GET':
+                method = 'POST'
         else:
             data = None
             method = args.method
@@ -203,6 +231,17 @@ def main():
 
     response = requests.request(
         url=url, method=method, json=data, headers=headers)
+
+    # Refresh discharge if necessary.
+    if response.headers.get('WWW-Authenticate') == (
+            'Macaroon needs_refresh=1'):
+        discharge = get_refreshed_discharge(discharge, store_env)
+        with open(os.path.join(auth_dir, args.auth), 'w') as fd:
+            json.dump({'root': root, 'discharge': discharge}, fd, indent=2)
+            headers.update(
+                {'Authorization': get_authorization_header(root, discharge)})
+            response = requests.request(
+                url=url, method=method, json=data, headers=headers)
 
     if args.print_headers:
         print('HTTP/1.1 {} {}'.format(response.status_code, response.reason))
