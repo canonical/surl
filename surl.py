@@ -113,7 +113,7 @@ def get_store_authorization(email, permissions=None, store_env=None):
         method='POST', json=sso_data, headers=headers)
     # OTP/2FA is optional.
     if (response.status_code == 401 and
-        response.json().get('code') == 'TWOFACTOR_REQUIRED'):
+            response.json().get('code') == 'TWOFACTOR_REQUIRED'):
         sso_data.update({'otp': input('Second-factor auth: ')})
         response = requests.request(
             url='{}/api/v2/tokens/discharge'.format(CONSTANTS[store_env]['sso_base_url']),
@@ -197,8 +197,8 @@ def main():
             return 1
         if args.auth:
             with open(os.path.join(auth_dir, args.auth), 'w') as fd:
-                a = {'root': root, 'discharge': discharge, 'store': args.store}
-                json.dump(a, fd, indent=2)
+                conf = {'root': root, 'discharge': discharge, 'store': store_env}
+                json.dump(conf, fd, indent=2)
 
     authorization = get_authorization_header(root, discharge)
     headers = DEFAULT_HEADERS.copy()
@@ -237,7 +237,8 @@ def main():
             'Macaroon needs_refresh=1'):
         discharge = get_refreshed_discharge(discharge, store_env)
         with open(os.path.join(auth_dir, args.auth), 'w') as fd:
-            json.dump({'root': root, 'discharge': discharge}, fd, indent=2)
+            conf = {'root': root, 'discharge': discharge, 'store': store_env}
+            json.dump(conf, fd, indent=2)
             headers.update(
                 {'Authorization': get_authorization_header(root, discharge)})
             response = requests.request(
