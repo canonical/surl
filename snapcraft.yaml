@@ -13,7 +13,7 @@ apps:
 
 parts:
   surl:
-    plugin: python3
+    plugin: python
     source: .
     stage-packages:
       - libsodium18

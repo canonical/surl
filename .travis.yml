@@ -1,4 +1,10 @@
 language: python
 python:
-  - '3.4'
-
+- '3.4'
+after_success:
+- openssl aes-256-cbc -K $encrypted_cee03c4e4c41_key -iv $encrypted_cee03c4e4c41_iv
+  -in .travis_snapcraft.cfg -out .snapcraft.cfg -d
+- sudo apt-get update -q
+- sudo apt-get install snapcraft -y
+- snapcraft
+- snapcraft push *.snap --release edge

@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup
 
 setup(
     name='surl',
@@ -13,4 +13,5 @@ setup(
         "requests",
         "pymacaroons",
     ],
+    test_suite='tests',
 )
