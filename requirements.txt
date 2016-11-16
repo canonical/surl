@@ -1,0 +1,2 @@
+pymacaroons
+requests
