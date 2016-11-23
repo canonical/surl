@@ -13,7 +13,7 @@ services:
 after_success:
 - openssl aes-256-cbc -K $encrypted_cee03c4e4c41_key -iv $encrypted_cee03c4e4c41_iv
   -in .travis_snapcraft.cfg -out .snapcraft.cfg -d
-- if [ "$TRAVIS_BRANCH" = "master" ]; then
+- if [ "$TRAVIS_PULL_REQUEST" = "false" ] && [ "$TRAVIS_BRANCH" = "master" ]; then
   docker run -v $(pwd):$(pwd) -t ubuntu:xenial sh -c
   "apt update -qq && apt install snapcraft -y && cd $(pwd) &&
   mkdir -p ~/.config/snapcraft && cp .snapcraft.cfg ~/.config/snapcraft/snapcraft.cfg &&
