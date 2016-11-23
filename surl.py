@@ -83,7 +83,7 @@ CONSTANTS = {
 }
 
 
-def get_store_authorization(email, permissions=None, store_env=None):
+def get_store_authorization(email, permissions=None, channels=None, store_env=None):
     """Return the serialised root and discharge macaroon.
 
     Get a permissions macaroon from SCA and discharge it in SSO.
@@ -93,6 +93,10 @@ def get_store_authorization(email, permissions=None, store_env=None):
     sca_data = {
         'permissions': permissions or ['package_access'],
     }
+    if channels:
+        sca_data.update({
+            'channels': channels
+        })
     response = requests.request(
         url='{}/dev/api/acl/'.format(CONSTANTS[store_env]['sca_base_url']),
         method='POST', json=sca_data, headers=headers)
@@ -156,6 +160,10 @@ def main():
         '-p', '--permission', action="append", dest='permissions',
         choices=['package_access', 'package_upload'])
 
+    parser.add_argument(
+        '-c', '--channel', action="append", dest='channels',
+        choices=['stable', 'candidate', 'beta', 'edge'])
+
     parser.add_argument('-I', dest='print_headers', action='store_true')
     parser.add_argument('-H', '--header', action="append", default=[], dest='headers')
     parser.add_argument(
@@ -191,7 +199,8 @@ def main():
             return 1
         try:
             root, discharge = get_store_authorization(
-                args.email, args.permissions, store_env)
+                args.email, permissions=args.permissions,
+                channels=args.channels, store_env=store_env)
         except:
             print('Authorization failed! Double-check password and 2FA.')
             return 1
