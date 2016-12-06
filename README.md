@@ -21,7 +21,7 @@ Verifying credentials:
     $ surl -e celso.providelo@canonical.com -s staging
     Password for celso.providelo@canonical.com:
     2FA (if enabled): ******
-    {"account": ..., "allowed": true, "permissions": ["package_access"]}
+    {"account": ..., "allowed": true, "permissions": ["package_access"], "channels": ["edge"]}
 
 Storing authorization:
 
