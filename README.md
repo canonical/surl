@@ -6,7 +6,7 @@ Ubuntu Store API thin wrapper
 
 Use `snap`:
 
-    $ snap install surl
+    $ snap install surl [--edge]
 
 Also create a snap `common` directory for saving authorizations.
 
