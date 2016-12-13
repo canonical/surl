@@ -2,6 +2,7 @@
 Ubuntu Store API thin wrapper
 
 
+
 ## Installing
 
 Use `snap`:

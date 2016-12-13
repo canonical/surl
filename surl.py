@@ -158,7 +158,8 @@ def main():
         choices=['staging', 'production'])
     parser.add_argument(
         '-p', '--permission', action="append", dest='permissions',
-        choices=['package_access', 'package_upload'])
+        choices=['package_access', 'package_manage', 'package_purchase',
+                 'modify_account_key', 'package_upload'])
 
     parser.add_argument(
         '-c', '--channel', action="append", dest='channels',
