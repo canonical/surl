@@ -1,4 +1,4 @@
-# surl [![Build Status](https://travis-ci.org/cprov/surl.svg?branch=master)](https://travis-ci.org/cprov/surl)
+# surl [![Build Status](https://travis-ci.org/cprov/surl.svg?branch=master)](https://travis-ci.org/cprov/surl) [![Snap Status](https://build.snapcraft.io/badge/cprov/surl.svg)](https://build.snapcraft.io/user/cprov/surl)
 Ubuntu Store API thin wrapper
 
 
