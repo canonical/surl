@@ -3,6 +3,7 @@ python:
 - '2.7'
 - '3.3'
 - pypy
+script: python -m unittest test
 after_success:
 - openssl aes-256-cbc -K $encrypted_cee03c4e4c41_key -iv $encrypted_cee03c4e4c41_iv
   -in .snapcraft/travis_snapcraft.cfg -out .snapcraft/snapcraft.cfg -d
