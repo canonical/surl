@@ -3,7 +3,7 @@ python:
 - '2.7'
 - '3.3'
 - pypy
-script: python -m unittest test
+script: python -m unittest tests
 after_success:
 - openssl aes-256-cbc -K $encrypted_cee03c4e4c41_key -iv $encrypted_cee03c4e4c41_iv
   -in .snapcraft/travis_snapcraft.cfg -out .snapcraft/snapcraft.cfg -d
@@ -14,7 +14,6 @@ deploy:
   'on':
     branch: master
   provider: script
-  script: docker run -v $(pwd):$(pwd) -t ubuntu:xenial sh -c "apt update -qq && apt
-    install snapcraft -y && cd $(pwd) && snapcraft && snapcraft push *.snap --release
-    edge"
+  script: docker run -v $(pwd):$(pwd) -t snapcore/snapcraft sh -c "apt update -qq
+    && cd $(pwd) && snapcraft && snapcraft push *.snap --release edge"
   skip_cleanup: true
