@@ -73,12 +73,12 @@ CONSTANTS = {
     'staging': {
         'sso_location': 'login.staging.ubuntu.com',
         'sso_base_url': 'https://login.staging.ubuntu.com',
-        'sca_base_url': 'https://myapps.developer.staging.ubuntu.com',
+        'sca_base_url': 'https://dashboard.staging.snapcraft.io',
     },
     'production': {
         'sso_location': 'login.ubuntu.com',
         'sso_base_url': 'https://login.ubuntu.com',
-        'sca_base_url': 'https://myapps.developer.ubuntu.com',
+        'sca_base_url': 'https://dashboard.snapcraft.io',
     },
 }
 
@@ -202,7 +202,7 @@ def main():
             root, discharge = get_store_authorization(
                 args.email, permissions=args.permissions,
                 channels=args.channels, store_env=store_env)
-        except:
+        except Exception as e:
             print('Authorization failed! Double-check password and 2FA.')
             return 1
         if args.auth:
