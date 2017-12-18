@@ -42,7 +42,7 @@ ACL verification)::
 Registering a new snap name::
 
   $ ./surl.py -a foo-prod -d'{"snap_name": "surl"}' \
-    https://myapps.developer.ubuntu.com/dev/api/register-name/ | jq .
+    https://dashboard.snapcraft.io/dev/api/register-name/ | jq .
   {
     "snap_id": "LpV8761EjlAPqeXxfYhQvpSWgpxvEWpN"
   }
@@ -50,6 +50,7 @@ Registering a new snap name::
 """
 
 import argparse
+import datetime
 import getpass
 import json
 import logging
@@ -89,9 +90,12 @@ def get_store_authorization(email, permissions=None, channels=None, store_env=No
     Get a permissions macaroon from SCA and discharge it in SSO.
     """
     headers = DEFAULT_HEADERS.copy()
-    # Request a SCA root macaroon.
+    # Request a SCA root macaroon with hard expiration in 180 days.
     sca_data = {
         'permissions': permissions or ['package_access'],
+        'expires': (
+            datetime.date.today() + datetime.timedelta(days=180)
+            ).strftime('%Y-%m-%d 00:00:00')
     }
     if channels:
         sca_data.update({
@@ -176,6 +180,11 @@ def main():
 
     logger.setLevel(logging.INFO)
     if args.debug:
+        try:
+            from http.client import HTTPConnection # py3
+        except ImportError:
+            from httplib import HTTPConnection # py2
+        HTTPConnection.debuglevel = 1
         logger.setLevel(logging.DEBUG)
         requests_log = logging.getLogger("requests.packages.urllib3")
         requests_log.setLevel(logging.DEBUG)
