@@ -151,48 +151,79 @@ def main():
         description='S(tore)URL ...'
     )
     parser.add_argument('-v', '--debug', action='store_true')
+
+    # Credential options.
     parser.add_argument(
         '-a', '--auth', metavar='IDENT',
         help='Authorization identifier (saving or reading).')
-
+    parser.add_argument(
+        '--force', action='store_true',
+        help='Force re-authorization and overrides saved information.')
+    parser.add_argument(
+        '-l', '--list-auth', action='store_true',
+        help='List stored authorizations..')
     parser.add_argument(
         '-e', '--email', default=os.environ.get('STORE_EMAIL'))
     parser.add_argument(
         '-s', '--store', default=os.environ.get('STORE_ENV', 'staging'),
         choices=['staging', 'production'])
+
+    # Macarroon restricting options.
     parser.add_argument(
         '-p', '--permission', action="append", dest='permissions',
         choices=['package_access', 'package_manage', 'package_purchase',
                  'modify_account_key', 'package_upload'])
-
     parser.add_argument(
         '-c', '--channel', action="append", dest='channels',
         choices=['stable', 'candidate', 'beta', 'edge'])
 
+    # Request options.
     parser.add_argument('-I', dest='print_headers', action='store_true')
     parser.add_argument('-H', '--header', action="append", default=[], dest='headers')
     parser.add_argument(
         '-X', '--method', default='GET', choices=['GET', 'POST', 'PUT'])
     parser.add_argument('-d', '--data')
+
     parser.add_argument('url', nargs='?')
 
     args = parser.parse_args()
 
+    auth_dir = os.path.abspath(os.environ.get('SNAP_USER_COMMON', '.'))
+
+    if args.list_auth:
+        print('Available credendials:')
+        for fn in os.listdir(auth_dir):
+            if fn.endswith('.surl'):
+                ident = fn.replace('.surl', '')
+                with open(os.path.join(auth_dir, fn)) as fd:
+                    try:
+                        a = json.load(fd)
+                        store_env = a['store']
+                    except json.decoder.JSONDecodeError:
+                        continue
+                print('  {} ({})'.format(ident, store_env))
+        return 0
+
     logger.setLevel(logging.INFO)
     if args.debug:
-        try:
-            from http.client import HTTPConnection # py3
-        except ImportError:
-            from httplib import HTTPConnection # py2
+        from http.client import HTTPConnection
         HTTPConnection.debuglevel = 1
         logger.setLevel(logging.DEBUG)
         requests_log = logging.getLogger("requests.packages.urllib3")
         requests_log.setLevel(logging.DEBUG)
         requests_log.propagate = True
 
-    auth_dir = os.path.abspath(os.environ.get('SNAP_USER_COMMON', '.'))
-    if args.auth and os.path.exists(os.path.join(auth_dir, args.auth)):
-        auth_path = os.path.join(auth_dir, args.auth)
+    if args.auth:
+        auth_path = os.path.join(auth_dir, args.auth + '.surl')
+        legacy_path = os.path.join(auth_dir, args.auth)
+        if os.path.exists(legacy_path):
+            os.rename(legacy_path, auth_path)
+        auth_exists = os.path.exists(auth_path)
+    else:
+        auth_path = None
+        auth_exists = False
+
+    if auth_exists and not args.force:
         with open(auth_path) as fd:
             try:
                 a = json.load(fd)
@@ -214,8 +245,8 @@ def main():
         except Exception as e:
             print('Authorization failed! Double-check password and 2FA.')
             return 1
-        if args.auth:
-            with open(os.path.join(auth_dir, args.auth), 'w') as fd:
+        if auth_path is not None:
+            with open(auth_path, 'w') as fd:
                 conf = {'root': root, 'discharge': discharge, 'store': store_env}
                 json.dump(conf, fd, indent=2)
 
@@ -255,7 +286,7 @@ def main():
     if response.headers.get('WWW-Authenticate') == (
             'Macaroon needs_refresh=1'):
         discharge = get_refreshed_discharge(discharge, store_env)
-        with open(os.path.join(auth_dir, args.auth), 'w') as fd:
+        with open(auth_path, 'w') as fd:
             conf = {'root': root, 'discharge': discharge, 'store': store_env}
             json.dump(conf, fd, indent=2)
             headers.update(
