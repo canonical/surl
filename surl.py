@@ -146,10 +146,14 @@ def get_refreshed_discharge(discharge, store_env):
         method='POST', json=data, headers=headers)
     return response.json()['discharge_macaroon']
 
+
 def main():
     parser = argparse.ArgumentParser(
         description='S(tore)URL ...'
     )
+    parser.add_argument(
+        '--version', action='version',
+        version='surl "{}"'.format(os.environ.get('SNAP_VERSION', 'devel')))
     parser.add_argument('-v', '--debug', action='store_true')
 
     # Credential options.
