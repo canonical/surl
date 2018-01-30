@@ -1,5 +1,5 @@
 name: surl
-version: 0.3
+version: 0.4
 summary: Ubuntu Store API thin wrapper.
 description: |
   Utility for easying authorization for the Ubuntu Store API.
