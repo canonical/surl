@@ -53,18 +53,15 @@ import argparse
 import datetime
 import getpass
 import json
-import logging
 import os
 import sys
 
 import requests
 from pymacaroons import Macaroon
 
-logging.basicConfig(format='%(asctime)s %(levelname)-5.5s %(name)s %(message)s')
-logger = logging.getLogger(__name__)
-
 
 DEFAULT_HEADERS = {
+    'User-Agent': 'surl/{}'.format(os.environ.get('SNAP_VERSION', 'devel')),
     'Accept': 'application/json, application/hal+json',
     'Content-Type': 'application/json',
     'Cache-Control': 'no-cache',
@@ -154,7 +151,8 @@ def main():
     parser.add_argument(
         '--version', action='version',
         version='surl "{}"'.format(os.environ.get('SNAP_VERSION', 'devel')))
-    parser.add_argument('-v', '--debug', action='store_true')
+    parser.add_argument('-v', '--debug', action='store_true',
+                        help='Prints request and response headers')
 
     # Credential options.
     parser.add_argument(
@@ -182,7 +180,6 @@ def main():
         choices=['stable', 'candidate', 'beta', 'edge'])
 
     # Request options.
-    parser.add_argument('-I', dest='print_headers', action='store_true')
     parser.add_argument('-H', '--header', action="append", default=[], dest='headers')
     parser.add_argument(
         '-X', '--method', default='GET', choices=['GET', 'POST', 'PUT'])
@@ -208,14 +205,13 @@ def main():
                 print('  {} ({})'.format(ident, store_env))
         return 0
 
-    logger.setLevel(logging.INFO)
     if args.debug:
-        from http.client import HTTPConnection
-        HTTPConnection.debuglevel = 1
-        logger.setLevel(logging.DEBUG)
-        requests_log = logging.getLogger("requests.packages.urllib3")
-        requests_log.setLevel(logging.DEBUG)
-        requests_log.propagate = True
+        # The http.client logger pollutes stdout.
+        #from http.client import HTTPConnection
+        #HTTPConnection.debuglevel = 1
+        import logging
+        handler = requests.packages.urllib3.add_stderr_logger()
+        handler.setFormatter(logging.Formatter('\033[1m%(message)s\033[0m'))
 
     if args.auth:
         auth_path = os.path.join(auth_dir, args.auth + '.surl')
@@ -283,8 +279,16 @@ def main():
                 return 1
             headers[k] = v
 
+    if args.debug:
+        print('\033[1m******** request headers ********\033[0m',
+              file=sys.stderr, flush=True)
+        for k, v in headers.items():
+            print('{}: {}'.format(k, v), file=sys.stderr, flush=True)
+        print('\033[1m**********************************\033[0m',
+              file=sys.stderr, flush=True)
+
     response = requests.request(
-        url=url, method=method, json=data, headers=headers)
+        url=url, method=method, json=data, headers=headers, stream=True)
 
     # Refresh discharge if necessary.
     if response.headers.get('WWW-Authenticate') == (
@@ -296,14 +300,23 @@ def main():
             headers.update(
                 {'Authorization': get_authorization_header(root, discharge)})
             response = requests.request(
-                url=url, method=method, json=data, headers=headers)
+                url=url, method=method, json=data, headers=headers, stream=True)
 
-    if args.print_headers:
-        print('HTTP/1.1 {} {}'.format(response.status_code, response.reason))
+    if args.debug:
+        print('\033[1m******** response headers ********\033[0m',
+              file=sys.stderr, flush=True)
+        print('HTTP/1.1 {} {}'.format(response.status_code, response.reason),
+              file=sys.stderr, flush=True)
         for k, v in response.headers.items():
-            print('{}: {}'.format(k, v))
+            print('{}: {}'.format(k, v), file=sys.stderr, flush=True)
+        print('\033[1m**********************************\033[0m',
+              file=sys.stderr, flush=True)
 
-    print(response.text)
+    for chunk in response.iter_content(chunk_size=1024 * 8):
+        if chunk:
+            sys.stdout.buffer.write(chunk)
+
+    sys.stdout.buffer.flush()
 
     return 0
 

@@ -8,7 +8,7 @@ grade: stable
 
 apps:
   surl:
-    command: usr/bin/python3 $SNAP/bin/surl.py
+    command: usr/bin/python3 -u $SNAP/bin/surl.py
     plugs: [network-bind, network]
 
 parts:
