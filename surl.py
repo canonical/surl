@@ -173,8 +173,20 @@ def main():
     # Macarroon restricting options.
     parser.add_argument(
         '-p', '--permission', action="append", dest='permissions',
-        choices=['package_access', 'package_manage', 'package_purchase',
-                 'modify_account_key', 'package_upload'])
+        choices=[
+            'edit_account',
+            'modify_account_key',
+            'package_access',
+            'package_manage',
+            'package_metrics',
+            'package_push',
+            'package_purchase',
+            'package_register',
+            'package_release',
+            'package_update',
+            'package_upload',
+            'package_upload_request',
+        ])
     parser.add_argument(
         '-c', '--channel', action="append", dest='channels',
         choices=['stable', 'candidate', 'beta', 'edge'])
@@ -253,7 +265,7 @@ def main():
     authorization = get_authorization_header(root, discharge)
     headers = DEFAULT_HEADERS.copy()
     if args.url is None:
-        url = '{}/dev/api/acl/verify/'.format(CONSTANTS[args.store]['sca_base_url'])
+        url = '{}/dev/api/acl/verify/'.format(CONSTANTS[store_env]['sca_base_url'])
         data = {'auth_data': {'authorization': authorization}}
         method = 'POST'
     else:
