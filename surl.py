@@ -194,7 +194,7 @@ def main():
     # Request options.
     parser.add_argument('-H', '--header', action="append", default=[], dest='headers')
     parser.add_argument(
-        '-X', '--method', default='GET', choices=['GET', 'POST', 'PUT'])
+        '-X', '--method', default='GET', choices=['GET', 'PATCH', 'POST', 'PUT'])
     parser.add_argument('-d', '--data')
 
     parser.add_argument('url', nargs='?')
