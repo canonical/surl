@@ -68,10 +68,22 @@ DEFAULT_HEADERS = {
 }
 
 CONSTANTS = {
+    'local': {
+        'sso_location': os.environ.get(
+            'SURL_SSO_LOCATION',
+            'login.staging.ubuntu.com'),
+        'sso_base_url': os.environ.get(
+            'SURL_SSO_BASE_URL',
+            'https://login.staging.ubuntu.com'),
+        'sca_base_url': os.environ.get(
+            'SURL_SCA_BASE_URL',
+            'http://0.0.0.0:8000'),
+    },
     'staging': {
         'sso_location': 'login.staging.ubuntu.com',
         'sso_base_url': 'https://login.staging.ubuntu.com',
-        'sca_base_url': 'https://dashboard.staging.snapcraft.io',
+        'sca_base_url': os.environ.get('SURL_SCA_ROOT_URL',
+                                       'https://dashboard.staging.snapcraft.io'),
     },
     'production': {
         'sso_location': 'login.ubuntu.com',
@@ -168,7 +180,7 @@ def main():
         '-e', '--email', default=os.environ.get('STORE_EMAIL'))
     parser.add_argument(
         '-s', '--store', default=os.environ.get('STORE_ENV', 'staging'),
-        choices=['staging', 'production'])
+        choices=['staging', 'production', 'local'])
 
     # Macarroon restricting options.
     parser.add_argument(
