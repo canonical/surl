@@ -131,7 +131,8 @@ def get_store_authorization(email, permissions=None, channels=None, store_env=No
     # OTP/2FA is optional.
     if (response.status_code == 401 and
             response.json().get('code') == 'TWOFACTOR_REQUIRED'):
-        sso_data.update({'otp': input('Second-factor auth: ')})
+        sys.stderr.write('Second-factor auth: ')
+        sso_data.update({'otp': input()})
         response = requests.request(
             url='{}/api/v2/tokens/discharge'.format(CONSTANTS[store_env]['sso_base_url']),
             method='POST', json=sso_data, headers=headers)
