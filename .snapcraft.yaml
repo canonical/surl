@@ -15,6 +15,8 @@ parts:
   surl:
     plugin: python
     source: .
+    build-packages:
+      - libffi-dev
     stage-packages:
       - libsodium18
       - libsodium-dev
