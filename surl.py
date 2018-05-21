@@ -166,6 +166,8 @@ def main():
         version='surl "{}"'.format(os.environ.get('SNAP_VERSION', 'devel')))
     parser.add_argument('-v', '--debug', action='store_true',
                         help='Prints request and response headers')
+    parser.add_argument('--pretty', action='store_true',
+                        help='Prints pretty json (sorted keys and 4-spaces for indent)')
 
     # Credential options.
     parser.add_argument(
@@ -199,6 +201,8 @@ def main():
             'package_update',
             'package_upload',
             'package_upload_request',
+            'store_admin',
+            'store_review',
         ])
     parser.add_argument(
         '-c', '--channel', action="append", dest='channels',
@@ -337,11 +341,17 @@ def main():
         print('\033[1m**********************************\033[0m',
               file=sys.stderr, flush=True)
 
-    for chunk in response.iter_content(chunk_size=1024 * 8):
-        if chunk:
-            sys.stdout.buffer.write(chunk)
+    chunks = [
+        chunk for chunk in response.iter_content(chunk_size=1024 * 8) if chunk]
+    result = b''.join(chunks)
 
-    sys.stdout.buffer.flush()
+    if args.pretty:
+        # ensure result is json and dump it properly
+        data = json.loads(result.decode('utf-8'))
+        print(json.dumps(data, indent=4, sort_keys=True))
+    else:
+        sys.stdout.buffer.write(result)
+        sys.stdout.buffer.flush()
 
     return 0
 
