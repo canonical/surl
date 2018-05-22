@@ -131,7 +131,7 @@ def get_store_authorization(email, permissions=None, channels=None, store_env=No
     # OTP/2FA is optional.
     if (response.status_code == 401 and
             response.json().get('code') == 'TWOFACTOR_REQUIRED'):
-        sys.stderr.write('Second-factor auth: ')
+        sys.stderr.write('Second-factor auth for {}: '.format(store_env))
         sso_data.update({'otp': input()})
         response = requests.request(
             url='{}/api/v2/tokens/discharge'.format(CONSTANTS[store_env]['sso_base_url']),
@@ -199,6 +199,8 @@ def main():
             'package_update',
             'package_upload',
             'package_upload_request',
+            'store_admin',
+            'store_review',
         ])
     parser.add_argument(
         '-c', '--channel', action="append", dest='channels',
@@ -341,7 +343,16 @@ def main():
         if chunk:
             sys.stdout.buffer.write(chunk)
 
-    sys.stdout.buffer.flush()
+    # Flush STDOUT carefully, because PIPE might be broken.
+    def _noop(*args, **kwargs):
+        pass
+
+    try:
+        sys.stdout.buffer.flush()
+    except (BrokenPipeError, IOError):
+        sys.stdout.write = _noop
+        sys.stdout.flush = _noop
+        return 1
 
     return 0
 
