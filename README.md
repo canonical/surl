@@ -9,11 +9,6 @@ Use `snap`:
 
     $ snap install surl [--edge]
 
-Also create a snap `common` directory for saving authorizations.
-
-    $ mkdir -p ~/snap/surl/common
-
-Careful because that directory will contain ready-to-use authorization.
 
 ## Usage
 
@@ -27,14 +22,14 @@ Verifying credentials:
 Storing authorization:
 
     $ surl -e celso.providelo@canonical.com -s staging \
-      -p package_access -p package_upload -a cprov-staging-upload
-    Password for celso.providelo@canonical.com:
-    2FA (if enabled): ****
+      -p package_access -p package_register-a stg-reg
+    Password for celso.providelo@canonical.com: ****
+    Second-factor auth for staging: ****
     ...
 
 Using stored authorizations:
 
-    $ surl -a cprov-staging-upload | jq .
+    $ surl -a stg-reg | jq .
     {
       "account": {
         "openid": "******",
@@ -47,15 +42,14 @@ Using stored authorizations:
       "allowed": true,
       "permissions": [
         "package_access",
-        "package_upload"
+        "package_register"
       ]
     }
 
 Registering a snap name in staging:
 
-    $ surl -a cprov-staging-upload -d'{"snap_name": "surl"}' \
-      https://myapps.developer.staging.ubuntu.com/dev/api/register-name/
+    $ surl -a stg-reg -d'{"snap_name": "surl"}' \
+      https://dashboard.staging.snapcraft.io/dev/api/register-name/
     {"snap_id": "wKFeK2U7Y2CB53vRJwg9MeR9bqfPvtZK"}
 
 Happy hacking!
-
