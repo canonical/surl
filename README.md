@@ -22,7 +22,7 @@ Verifying credentials:
 Storing authorization:
 
     $ surl -e celso.providelo@canonical.com -s staging \
-      -p package_access -p package_register-a stg-reg
+      -p package_access -p package_register -a stg-reg
     Password for celso.providelo@canonical.com: ****
     Second-factor auth for staging: ****
     ...
