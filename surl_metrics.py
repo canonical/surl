@@ -12,13 +12,6 @@ import tabulate
 import surl
 
 
-DEFAULT_HEADERS = {
-    'Accept': 'application/json, application/hal+json',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache',
-}
-
-
 def get_snap_id(snap_name, config):
     headers = surl.DEFAULT_HEADERS.copy()
     headers['Authorization'] = surl.get_authorization_header(
@@ -36,9 +29,11 @@ def get_publisher_metric(snap_id, metric_name, config):
     headers['Authorization'] = surl.get_authorization_header(
         config.root, config.discharge)
 
-    yesterday = datetime.datetime.utcnow().date() - datetime.timedelta(1)
+    # account for time spend mining the metrics daily (~4h).
+    yesterday = (
+        datetime.datetime.utcnow() - datetime.timedelta(days=1, hours=4))
 
-    start = end = yesterday.isoformat()
+    start = end = yesterday.date().isoformat()
     filters = [
         {"metric_name": metric_name, "snap_id": snap_id,
          "start": start, "end": end}
@@ -57,8 +52,11 @@ def get_public_metric(snap_id, metric_name, config):
     headers = surl.DEFAULT_HEADERS.copy()
     headers['X-Ubuntu-Series'] = '16'
 
-    yesterday = datetime.datetime.utcnow().date() - datetime.timedelta(1)
-    start = end = yesterday.isoformat()
+    # account for time spend mining the metrics daily (~4h).
+    yesterday = (
+        datetime.datetime.utcnow() - datetime.timedelta(days=1, hours=4))
+
+    start = end = yesterday.date().isoformat()
     filters = [
         {"metric_name": metric_name, "snap_id": snap_id,
          "start": start, "end": end}
