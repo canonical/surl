@@ -3,6 +3,7 @@
 import argparse
 import collections
 import datetime
+import logging
 import os
 import requests
 import sys
@@ -10,6 +11,11 @@ import tabulate
 
 
 import surl
+
+
+logging.basicConfig(format='\033[3;1m%(message)s\033[0m')
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 def get_snap_id(snap_name, config):
@@ -74,16 +80,16 @@ METRICS = (
     'weekly_installed_base_by_channel',
     'weekly_installed_base_by_operating_system',
     'weekly_installed_base_by_version',
+    'weekly_installed_base_by_country',
 )
 
 
 def main():
-    auth_dir = os.path.abspath(os.environ.get('SNAP_USER_COMMON', '.'))
-
     parser = argparse.ArgumentParser(
         description='Snap store metrics viewer ...'
     )
 
+    auth_dir = os.path.abspath(os.environ.get('SNAP_USER_COMMON', '.'))
     try:
         config, remainder = surl.get_config_from_cli(parser, auth_dir)
     except surl.CliError as e:
@@ -102,12 +108,10 @@ def main():
     args = parser.parse_args(remainder)
 
     if args.debug:
-        # # The http.client logger pollutes stdout.
-        # from http.client import HTTPConnection
-        # HTTPConnection.debuglevel = 1
-        import logging
-        handler = requests.packages.urllib3.add_stderr_logger()
-        handler.setFormatter(logging.Formatter('\033[1m%(message)s\033[0m'))
+        logging.getLogger().setLevel(logging.DEBUG)
+        requests_log = logging.getLogger("requests.packages.urllib3")
+        requests_log.setLevel(logging.DEBUG)
+        requests_log.propagate = True
 
     if not args.snap_name:
         args.snap_name = 'lxd'

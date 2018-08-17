@@ -1,5 +1,5 @@
 name: surl
-version: 0.6.1
+version: 0.7
 summary: Ubuntu Store API thin wrapper.
 description: |
   Utility for easying authorization for the Ubuntu Store API.
@@ -12,6 +12,9 @@ apps:
     plugs: [network-bind, network]
   metrics:
     command: usr/bin/python3 -u $SNAP/bin/surl_metrics.py
+    plugs: [network-bind, network]
+  storeops:
+    command: usr/bin/python3 -u $SNAP/bin/surl_storeops.py
     plugs: [network-bind, network]
 
 parts:
