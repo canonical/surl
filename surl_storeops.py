@@ -2,6 +2,7 @@
 
 import argparse
 import datetime
+import iso8601
 import json
 import logging
 import os
@@ -28,8 +29,8 @@ def _get_search_results(config):
 
     snaps = []
     url = (
-        '{}/api/v1/snaps/search?size=500&'
-        'fields=snap_id,media,origin,developer_validation'
+        '{}/api/v1/snaps/search?size=500&scope=wide&'
+        'fields=snap_id,media,origin,developer_validation,date_published,last_updated'
         .format(surl.CONSTANTS[config.store_env]['api_base_url']))
 
     while url is not None:
@@ -64,6 +65,10 @@ def _get_snap_metrics(filters, config):
     return metrics
 
 
+def format_date(timestamp):
+    return iso8601.parse_date(timestamp).date().isoformat()
+
+
 def fetch_snaps(config):
     logger.info('Fetching snaps ...')
     snaps = _get_search_results(config)
@@ -75,6 +80,8 @@ def fetch_snaps(config):
             'snap_name': s['package_name'],
             'snap_id': s['snap_id'],
             'media': s['media'],
+            'created_at': format_date(s['date_published']),
+            'last_uploaded_at': format_date(s['last_updated']),
             'developer_validation': s['developer_validation'],
             'developer_username': s['origin']
         } for s in snaps

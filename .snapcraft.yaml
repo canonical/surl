@@ -30,5 +30,6 @@ parts:
       - requests
       - pymacaroons
       - tabulate
+      - iso8601
     prime:
       - -install

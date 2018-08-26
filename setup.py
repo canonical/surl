@@ -26,6 +26,7 @@ setuptools.setup(
         "requests",
         "pymacaroons",
         "tabulate",
+        "iso8601",
     ],
     test_suite='tests',
     setup_requires=[
