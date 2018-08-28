@@ -31,8 +31,8 @@ def _get_search_results(config):
     url = (
         '{}/api/v1/snaps/search?size=500&scope=wide&'
         'confinement=strict,classic,devmode&'
-        'fields=snap_id,confinement,media,origin,developer_validation,'
-         'date_published,last_updated'
+        'fields=snap_id,channel,confinement,media,origin,developer_validation,'
+         'date_published,last_updated,sections'
         .format(surl.CONSTANTS[config.store_env]['api_base_url']))
 
     while url is not None:
@@ -81,7 +81,9 @@ def fetch_snaps(config):
         s['snap_id']: {
             'snap_name': s['package_name'],
             'snap_id': s['snap_id'],
+            'channel': s['channel'],
             'confinement': s['confinement'],
+            'sections': [sec['name'] for sec in s['sections']],
             'media': s['media'],
             'created_at': format_date(s['date_published']),
             'last_uploaded_at': format_date(s['last_updated']),
