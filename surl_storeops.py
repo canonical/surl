@@ -24,8 +24,6 @@ def _make_partition(seq, size):
 
 def _get_search_results(config):
     headers = surl.DEFAULT_HEADERS.copy()
-    headers['Authorization'] = surl.get_authorization_header(
-        config.root, config.discharge)
 
     snaps = []
     url = (
@@ -67,6 +65,27 @@ def _get_snap_metrics(filters, config):
     return metrics
 
 
+def _refresh_discharge(config):
+    headers = surl.DEFAULT_HEADERS.copy()
+    headers['Authorization'] = surl.get_authorization_header(
+        config.root, config.discharge)
+
+    url = '{}/dev/api/account'.format(
+        surl.CONSTANTS[config.store_env]['sca_base_url'])
+
+    r = requests.get(url=url, headers=headers)
+    if r.headers.get('WWW-Authenticate') == (
+            'Macaroon needs_refresh=1'):
+        discharge = surl.get_refreshed_discharge(
+            config.discharge, config.store_env)
+        config = surl.ClientConfig(
+            root=config.root, discharge=discharge, store_env=config.store_env,
+            path=config.path)
+        surl.save_config(config)
+
+    return config
+
+
 def format_date(timestamp):
     return iso8601.parse_date(timestamp).date().isoformat()
 
@@ -100,6 +119,7 @@ def fetch_snaps(config):
     } for snap_id in snap_map.keys()]
 
     logger.info('Fetching metrics ...')
+    config = _refresh_discharge(config)
     metrics = _get_snap_metrics(filters, config)
     for m in metrics:
         snap_map[m['snap_id']].update({
