@@ -202,12 +202,6 @@ def get_snaps(config):
 
         _next = payload['_links'].get('next')
         url = _next['href'] if _next is not None else None
-        # XXX see https://bugs.launchpad.net/snapstore/+bug/1793257
-        if url is not None:
-            url = url.replace('http://', 'https://')
-            url = url.replace(
-                'https://snapdevicegw_cached',
-                surl.CONSTANTS[config.store_env]['api_base_url'])
 
     return snaps
 
