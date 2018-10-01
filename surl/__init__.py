@@ -165,7 +165,7 @@ def get_config_from_cli(parser, auth_dir):
     args, remainder = parser.parse_known_args()
 
     if args.list_auth:
-        print('Available credendials:')
+        print('Available credentials:')
         for ident, store_env in list_configs(auth_dir):
             print('  {} ({})'.format(ident, store_env))
         raise CliDone()
