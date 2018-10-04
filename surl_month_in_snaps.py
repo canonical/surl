@@ -5,8 +5,10 @@ import datetime
 import logging
 import os
 import requests
+import urllib
 import sys
 import surl
+import json
 
 # Schema:
 # channelMapWithMetrics = {
@@ -27,7 +29,7 @@ import surl
 #     'weeklyActive': 100,
 # }
 # snapName = 'package_name'
-# snapIconUrl = 'icon_url'
+# snapIconURL = 'icon_url'
 # snapStoreAccountID = 'developer_id'
 # unused = 'snap_id'
 
@@ -35,6 +37,10 @@ import surl
 logging.basicConfig(format='\033[3;1m%(message)s\033[0m')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+class MarketoTokenExpired(Exception):
+    pass
 
 
 def get_snap_info(snap_name, config):
@@ -140,8 +146,10 @@ def get_channel_metrics(snap_id, config):
 def add_weekly_active_totals(snaps):
     for snap in snaps:
         channel_map = snap['channelMapWithMetrics']['channelMap']
+
         delta = sum(channel['weeklyActive1moDelta'] for channel in channel_map)
         snap['channelMapWithMetrics']['weeklyActive1moDelta'] = delta
+
         active = sum(channel['weeklyActive'] for channel in channel_map)
         snap['channelMapWithMetrics']['weeklyActive'] = active
 
@@ -214,7 +222,7 @@ def add_toplevel_metadata(source, target):
         }
         for media in snap['media']:
             if media['type'] == 'icon':
-                obj['snapIconUrl'] = media['url']
+                obj['snapIconURL'] = media['url']
                 break
         target.append(obj)
 
@@ -328,22 +336,97 @@ def _refresh_discharge(config):
     return config
 
 
+def _get_marketo_access_token(config):
+    url = urllib.parse.urljoin(config.marketo_root, '/identity/oauth/token')
+    params = {
+        'grant_type': 'client_credentials',
+        'client_id': config.marketo_client_id,
+        'client_secret': config.marketo_secret,
+    }
+    url += '?' + urllib.parse.urlencode(params)
+    response = requests.get(url)
+    response.raise_for_status()
+    return response.json()['access_token']
+
+
+def _check_marketo_response(response):
+    response.raise_for_status()
+    response_json = response.json()
+    if not response_json['success']:
+        if response_json['errors'][0]['code'] == '602':
+            raise MarketoTokenExpired()
+        else:
+            raise Exception(response.text)
+
+    result = response_json['result'][0]
+
+    if result['status'] == 'skipped':
+        if result['reasons'][0]['message'] == 'Lead not found':
+            # We cannot update custom objects for leads that do not exist.
+            return
+
+    if result['status'] not in ('created', 'updated'):
+        raise Exception(response.text)
+
+
+def post_to_marketo(snap, token, config):
+    headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+    }
+    path = '/rest/v1/customobjects/snap_c.json'
+    url = urllib.parse.urljoin(config.marketo_root, path)
+    params = {
+        'access_token': token
+    }
+    url += '?' + urllib.parse.urlencode(params)
+    payload = {'input': [snap]}
+    response = requests.post(url, json=payload, headers=headers)
+    _check_marketo_response(response)
+
+
+def update_marketo_objects(snaps, config):
+    token = _get_marketo_access_token(config)
+    for snap in snaps:
+        try:
+            post_to_marketo(snap, token, config)
+        except MarketoTokenExpired:
+            token = _get_marketo_access_token(config)
+            post_to_marketo(snap, token, config)
+
+
+def mangle_for_marketo(snaps):
+    '''Destructive operation to reformat data for marketo.'''
+    for snap in snaps:
+        snap['channelMapWithMetrics'] = json.dumps(snap['channelMapWithMetrics'])
+        del snap['snapID']
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Month in snaps ...'
     )
     auth_dir = os.path.abspath(os.environ.get('SNAP_USER_COMMON', '.'))
     try:
-        config, _ = surl.get_config_from_cli(parser, auth_dir)
+        config, remainder = surl.get_config_from_cli(parser, auth_dir)
     except surl.CliError as e:
         print(e)
         return 1
     except surl.CliDone:
         return 0
+    
+    parser.add_argument('--marketo-root', required=True)
+    parser.add_argument('--marketo-client-id', required=True)
+    marketo_config = parser.parse_args(remainder)
+    try:
+        marketo_config.marketo_secret = os.environ['MARKETO_SECRET']
+    except KeyError:
+        print('Set MARKETO_SECRET and try again.', file=sys.stderr)
+        return 1
+    
     config = _refresh_discharge(config)
     snaps = []
     logging.info('getting snaps')
-    source_snaps = get_snaps(config)[:500] # FIXME
+    source_snaps = get_snaps(config)
     add_toplevel_metadata(source_snaps, snaps)
     logging.info('getting metrics')
     add_channel_map_metrics(snaps, config)
@@ -351,9 +434,9 @@ def main():
     snaps = filter_snaps_without_metrics(snaps)
     logging.info('getting versions')
     add_channel_map_versions(snaps, config)
-    
-    import json
-    print(json.dumps(snaps))
+    logging.info('updating marketo')
+    mangle_for_marketo(snaps)
+    update_marketo_objects(snaps, marketo_config)
     return 0
     
 if __name__ == '__main__':
