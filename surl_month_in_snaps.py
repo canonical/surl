@@ -250,11 +250,7 @@ def add_channel_map_metrics(snaps, config):
         snap_id = snap['snapID']
         channel_metrics = get_channel_metrics(snap_id, config)
         channel_map = channel_metrics['channelMap']
-        try:
-            channel_metrics['channelMap'] = sort_metrics_by_channel(channel_map)
-        except Exception:
-            print(channel_map)
-            raise
+        channel_metrics['channelMap'] = sort_metrics_by_channel(channel_map)
         snap['channelMapWithMetrics'] = channel_metrics
 
 
@@ -358,15 +354,15 @@ def _check_marketo_response(response):
         else:
             raise Exception(response.text)
 
-    result = response_json['result'][0]
-
-    if result['status'] == 'skipped':
-        if result['reasons'][0]['message'] == 'Lead not found':
-            # We cannot update custom objects for leads that do not exist.
-            return
-
-    if result['status'] not in ('created', 'updated'):
-        raise Exception(response.text)
+    if response.request.method != 'GET':
+        result = response_json['result'][0]
+        status = result.get('status')
+        if status == 'skipped':
+            if result['reasons'][0]['message'] == 'Lead not found':
+                # We cannot update custom objects for leads that do not exist.
+                return
+        if status and status not in ('created', 'updated', 'deleted'):
+            raise Exception(response.text)
 
 
 def post_to_marketo(snap, token, config):
@@ -401,6 +397,73 @@ def mangle_for_marketo(snaps):
         del snap['snapID']
 
 
+def get_store_accounts(snaps):
+    return set([snap['snapStoreAccountID'] for snap in snaps])
+
+
+def get_lead_for_store_account(account, token, config):
+    headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+    }
+    path = '/rest/v1/leads.json'
+    url = urllib.parse.urljoin(config.marketo_root, path)
+    params = {
+        'access_token': token,
+        'fields': 'id',
+        'filterType': 'snapStoreAccountID',
+        'filterValues': account,
+    }
+    url += '?' + urllib.parse.urlencode(params)
+    response = requests.get(url, headers=headers)
+    _check_marketo_response(response)
+    response_json = response.json()
+    if not response_json['result']:
+        # Lead does not exist.
+        return None
+    else:
+        return response_json['result'][0]['id']
+
+
+def trigger_marketo_campaign(campaign, leads, token, config):
+    headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+    }
+    path = '/rest/v1/campaigns/{}/trigger.json'.format(campaign)
+    url = urllib.parse.urljoin(config.marketo_root, path)
+    params = {
+        'access_token': token,
+    }
+    url += '?' + urllib.parse.urlencode(params)
+    payload = {
+        'input': {
+            'leads': [],
+        }
+    }
+    for lead in leads:
+        payload['input']['leads'].append({'id': lead})
+    
+    response = requests.post(url, json=payload, headers=headers)
+    _check_marketo_response(response)
+    
+
+def trigger_month_in_snaps_campaign(store_accounts, config):
+    leads = []
+    token = _get_marketo_access_token(config)
+    for account in store_accounts:
+        try:
+            lead = get_lead_for_store_account(account, token, config)
+        except MarketoTokenExpired:
+            token = _get_marketo_access_token(config)
+            lead = get_lead_for_store_account(account, token, config)
+        if lead:
+            leads.append(lead)
+    try:
+        trigger_marketo_campaign('9465', leads, token, config)
+    except MarketoTokenExpired:
+        token = _get_marketo_access_token(config)
+        trigger_marketo_campaign('9465', leads, token, config)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Month in snaps ...'
@@ -426,7 +489,7 @@ def main():
     config = _refresh_discharge(config)
     snaps = []
     logging.info('getting snaps')
-    source_snaps = get_snaps(config)
+    source_snaps = get_snaps(config)[:50]
     add_toplevel_metadata(source_snaps, snaps)
     logging.info('getting metrics')
     add_channel_map_metrics(snaps, config)
@@ -437,6 +500,9 @@ def main():
     logging.info('updating marketo')
     mangle_for_marketo(snaps)
     update_marketo_objects(snaps, marketo_config)
+    logging.info('calling marketo campaign')
+    store_account_ids = get_store_accounts(snaps)
+    trigger_month_in_snaps_campaign(store_account_ids, marketo_config)
     return 0
     
 if __name__ == '__main__':
