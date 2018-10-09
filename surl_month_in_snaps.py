@@ -9,12 +9,17 @@ import urllib
 import sys
 import surl
 import json
+import functools
+import copy
 
 # Schema:
 # channelMapWithMetrics = {
 #     'channelMap': [
 #         {
-#             'channelName': 'latest/edge',
+#             'channel': {
+#               'track': 'latest',
+#               'risk': 'edge'
+#             },
 #             'weeklyActive1moDelta': 3,
 #             'weeklyActive': 100,
 #             'versions': [
@@ -42,6 +47,9 @@ logger.setLevel(logging.INFO)
 class MarketoTokenExpired(Exception):
     pass
 
+class SnapNotFound(Exception):
+    pass
+
 
 def get_snap_info(snap_name, config):
     headers = surl.DEFAULT_HEADERS.copy()
@@ -52,24 +60,36 @@ def get_snap_info(snap_name, config):
     url = '{}/v2/snaps/info/{}'.format(
         surl.CONSTANTS[config.store_env]['api_base_url'], snap_name)
     r = requests.get(url=url, headers=headers)
-    r.raise_for_status()
-    return r.json()
+    if r.status_code == 404:
+        raise SnapNotFound()
+    else:
+        r.raise_for_status()
+        return r.json()
 
-def _acceptable_channel_name(name):
-    if name.count('/') > 1:
-        # We don't want to show branches.
-        return False
-    risk_with_branch = (
-        'stable/',
-        'candidate/',
-        'beta/',
-        'edge/',
-    )
-    if any([name.startswith(x) for x in risk_with_branch]):
-        # We don't want to show branches of the 'latest' track.
-        return False
+
+def _get_channel_parts(channel):
+    risks = ('stable', 'candidate', 'beta', 'edge')
+    parts = channel.split('/')
+    count = len(parts)
+    branch = ''
     
-    return True
+    if count == 1:
+        track = 'latest'
+        risk = parts[0]
+    elif count == 2 and parts[1] in risks:
+        track = parts[0]
+        risk = parts[1]
+    elif count == 2 and parts[0] in risks:
+        track = 'latest'
+        risk = parts[0]
+        branch = parts[1]
+    elif count == 3:
+        track = parts[0]
+        risk = parts[1]
+        branch = parts[2]
+    else:
+        raise ValueError('Too many parts to channel: {}'.format(channel))    
+    return (track, risk, branch)
 
 
 def get_channel_metrics(snap_id, config):
@@ -77,7 +97,10 @@ def get_channel_metrics(snap_id, config):
     channelMapWithMetrics = {
         'channelMap': [
             {
-                'channelName': 'latest/edge',
+                'channel': {
+                    'track': 'latest',
+                    'risk': 'edge'
+                },
                 'weeklyActive1moDelta': 3,
                 'weeklyActive': 100
             }
@@ -110,6 +133,7 @@ def get_channel_metrics(snap_id, config):
     current.raise_for_status()
     current = current.json()
 
+    # FIXME this should be a month, not 30 days.
     month_prev = yesterday - datetime.timedelta(days=30)
     month_prev = month_prev.date().isoformat()
     payload['filters'][0]['start'] = month_prev
@@ -121,8 +145,6 @@ def get_channel_metrics(snap_id, config):
     data = []
     for series_current in current['metrics'][0]['series']:
         name = series_current['name']
-        if not _acceptable_channel_name(name):
-            continue
         weekly_active = series_current['values'][0]
         # If no data from the previous month, initialise to this month.
         delta = weekly_active
@@ -130,10 +152,12 @@ def get_channel_metrics(snap_id, config):
             if series_old['name'] == name:
                 delta = series_current['values'][0] - series_old['values'][0]
                 break
-        if '/' not in name:
-            name = 'latest/{}'.format(name)
+        track, risk, branch = _get_channel_parts(name)
+        channel = {'track': track, 'risk': risk}
+        if branch:
+            channel['branch'] = branch
         data.append({
-            'channelName': name,
+            'channel': channel,
             'weeklyActive': weekly_active,
             'weeklyActive1moDelta': delta,
         })
@@ -154,11 +178,12 @@ def add_weekly_active_totals(snaps):
         snap['channelMapWithMetrics']['weeklyActive'] = active
 
 
-def _channel_sort(channel):
+def _channel_cmp(a, b):
     '''Key function to sort channel names.
 
        Sorts as:
        latest/stable
+       latest/stable/hotfix
        latest/candidate
        latest/beta
        latest/edge
@@ -168,27 +193,37 @@ def _channel_sort(channel):
        9/stable
     '''
     channels = {
-        'stable': 1,
-        'candidate': 2,
-        'beta': 3,
-        'edge': 4,
+        'stable': 4,
+        'candidate': 3,
+        'beta': 2,
+        'edge': 1,
     }
-    track, risk = channel.split('/')
-    if track == 'latest':
-        # Lowest ascii character
-        track_weight = ' '
-    else:
-        track_weight = ''
-    try:
-        # 10/stable, 9/stable, 6/stable, ...
-        track = '|{:3f}'.format(1/int(track))
-    except ValueError:
-        pass
-    return '{}{}{}'.format(track_weight, track, channels[risk])
+    if a == b:
+        return 0
+    
+    if a['track'] == 'latest' and b['track'] != 'latest':
+        return -1
+    if a['track'] != 'latest' and b['track'] == 'latest':
+        return 1
+    if a['track'] > b['track']:
+        return -1
+    if a['track'] < b['track']:
+        return 1
+    if a['track'] == b['track']:
+        if a['risk'] != b['risk']:
+            return channels[b['risk']] - channels[a['risk']]
+        else:
+            if a.get('branch', '') > b.get('branch', ''):
+                return 1
+            else:
+                return -1
 
 
 def sort_metrics_by_channel(metrics):
-    return sorted(metrics, key=lambda obj: _channel_sort(obj['channelName']))
+    keyfunc = functools.cmp_to_key(
+        lambda a, b: _channel_cmp(a['channel'], b['channel'])
+    )
+    return sorted(metrics, key=keyfunc)
 
 
 def get_snaps(config):
@@ -254,12 +289,15 @@ def add_channel_map_metrics(snaps, config):
         snap['channelMapWithMetrics'] = channel_metrics
 
 
-def add_channel_map_versions(snaps, config):
+def add_channel_map_versions(snaps, config) -> list:
     '''
     channelMapWithMetrics = {
         'channelMap': [
             {
-                'channelName': 'latest/edge',
+                'channel': {
+                    'track': 'latest',
+                    'risk': 'edge'
+                },
                 'versions': [
                     {
                         'version': '1.3',
@@ -271,7 +309,12 @@ def add_channel_map_versions(snaps, config):
     }
     '''
     for snap in snaps:
-        snap_info = get_snap_info(snap['snapName'], config)
+        try:
+            snap_info = get_snap_info(snap['snapName'], config)
+        except SnapNotFound:
+            # If a snap is set to only show in a specific territory (that this
+            # code is not running in), a 404 error will be returned.
+            continue
         channels = {}
         for c in snap_info['channel-map']:
             name = '{}/{}'.format(c['channel']['track'], c['channel']['risk'])
@@ -283,29 +326,32 @@ def add_channel_map_versions(snaps, config):
                 channels[name][version] = [arch]
             else:
                 channels[name][version].append(arch)
-
-        for c in snap['channelMapWithMetrics']['channelMap']:
-            for channel in channels:
-                if c['channelName'] == channel:
-                    if 'versions' not in c:
-                        c['versions'] = []
+        
+        for channel in channels:
+            track, risk = channel.split('/')
+            for c in snap['channelMapWithMetrics']['channelMap']:
+                if c['channel']['track'] == track and c['channel']['risk'] == risk:
+                    c['versions'] = []
                     for version in channels[channel]:
                         c['versions'].append({
                             'version': version,
                             'architectures': channels[channel][version]
                         })
                     break
-                    
 
 
 def filter_snaps_without_metrics(snaps, minimum=10):
-    '''Filter out snaps that are not released to any channel
-       or have fewer installs than the specified minimum.
+    '''Filter out snaps that are not released to any channel or have fewer
+       installs than the specified minimum.
+
+       This should not be called prior to setting data in marketo as doing so
+       would prevent us from making updates to existing data structures when
+       those change. Only call prior to triggering campaigns.
     '''
     return list(
         filter(
             lambda x: (x['channelMapWithMetrics']['channelMap'] and
-                       x['channelMapWithMetrics']['weeklyActive'] >= minimum),
+                    x['channelMapWithMetrics']['weeklyActive'] >= minimum),
             snaps
         )
     )
@@ -391,10 +437,12 @@ def update_marketo_objects(snaps, config):
 
 
 def mangle_for_marketo(snaps):
-    '''Destructive operation to reformat data for marketo.'''
-    for snap in snaps:
+    '''Reformatted data for marketo as a copy.'''
+    mangled = copy.deepcopy(snaps)
+    for snap in mangled:
         snap['channelMapWithMetrics'] = json.dumps(snap['channelMapWithMetrics'])
         del snap['snapID']
+    return mangled
 
 
 def get_store_accounts(snaps):
@@ -479,9 +527,12 @@ def main():
     
     parser.add_argument('--marketo-root', required=True)
     parser.add_argument('--marketo-client-id', required=True)
-    marketo_config = parser.parse_args(remainder)
+    parser.add_argument('--snap-name', required=False)
+    parser.add_argument('--snap-id', required=False)
+    parser.add_argument('--developer-id', required=False)
+    additional_config = parser.parse_args(remainder)
     try:
-        marketo_config.marketo_secret = os.environ['MARKETO_SECRET']
+        additional_config.marketo_secret = os.environ['MARKETO_SECRET']
     except KeyError:
         print('Set MARKETO_SECRET and try again.', file=sys.stderr)
         return 1
@@ -489,20 +540,31 @@ def main():
     config = _refresh_discharge(config)
     snaps = []
     logging.info('getting snaps')
-    source_snaps = get_snaps(config)[:50]
+    if (additional_config.snap_id and
+        additional_config.snap_name and
+        additional_config.developer_id):
+        logging.info('only updating {}'.format(additional_config.snap_name))
+        source_snaps = [{
+            'package_name': additional_config.snap_name,
+            'developer_id': additional_config.developer_id,
+            'snap_id': additional_config.snap_id,
+            'media': [], # FIXME
+        }]
+    else:
+        source_snaps = get_snaps(config)
     add_toplevel_metadata(source_snaps, snaps)
     logging.info('getting metrics')
     add_channel_map_metrics(snaps, config)
     add_weekly_active_totals(snaps)
-    snaps = filter_snaps_without_metrics(snaps)
     logging.info('getting versions')
     add_channel_map_versions(snaps, config)
     logging.info('updating marketo')
-    mangle_for_marketo(snaps)
-    update_marketo_objects(snaps, marketo_config)
+    update_marketo_objects(mangle_for_marketo(snaps), additional_config)
     logging.info('calling marketo campaign')
+    snaps = filter_snaps_without_metrics(snaps)
     store_account_ids = get_store_accounts(snaps)
-    trigger_month_in_snaps_campaign(store_account_ids, marketo_config)
+    logging.info('triggering {} emails'.format(len(store_account_ids)))
+    trigger_month_in_snaps_campaign(store_account_ids, additional_config)
     return 0
     
 if __name__ == '__main__':
