@@ -16,6 +16,9 @@ apps:
   storeops:
     command: usr/bin/python3 -u $SNAP/bin/surl_storeops.py
     plugs: [network-bind, network]
+  monthinsnaps:
+    command: usr/bin/python3 -u $SNAP/bin/surl_month_in_snaps.py
+    plugs: [network-bind, network]
 
 parts:
   surl:
