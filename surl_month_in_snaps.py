@@ -23,10 +23,7 @@ import copy
 #             'weeklyActive1moDelta': 3,
 #             'weeklyActive': 100,
 #             'versions': [
-#                 {
-#                     'version': '1.3',
-#                     'architectures': ['i386', 'amd64']
-#                 }
+#                 '1.3'
 #             ]
 #         }
 #     ],
@@ -231,13 +228,16 @@ def get_snaps(config):
 
     snaps = []
     url = (
-        '{}/api/v1/snaps/search?size=500&scope=wide&'
+        '{}/api/v1/snaps/search?size=250&scope=wide&'
         'confinement=strict,classic,devmode&'
         'fields=snap_id,developer_id,media'
         .format(surl.CONSTANTS[config.store_env]['api_base_url']))
 
     while url is not None:
         r = requests.get(url=url, headers=headers)
+        if r.status_code == 503:
+            print('Headers: {}'.format(r.headers))
+            print('Response: {}'.format(r.text))
         r.raise_for_status()
         payload = r.json()
 
@@ -270,12 +270,7 @@ def add_channel_map_metrics(snaps, config):
                 'channelName': 'latest/edge',
                 'weeklyActive1moDelta': 3,
                 'versions': [
-                    {
-                        'version': '3.2.10',
-                        'architectures': [
-                            'amd64'
-                        ]
-                    }
+                    '3.2.10'
                 ]
             }
         ]
@@ -299,10 +294,7 @@ def add_channel_map_versions(snaps, config) -> list:
                     'risk': 'edge'
                 },
                 'versions': [
-                    {
-                        'version': '1.3',
-                        'architectures': ['i386', 'amd64']
-                    }
+                    '1.3'
                 ]
             }
         ]
@@ -318,25 +310,17 @@ def add_channel_map_versions(snaps, config) -> list:
         channels = {}
         for c in snap_info['channel-map']:
             name = '{}/{}'.format(c['channel']['track'], c['channel']['risk'])
-            if name not in channels:
-                channels[name] = {}
             version = c['version']
-            arch = c['channel']['architecture']
+            if name not in channels:
+                channels[name] = []
             if version not in channels[name]:
-                channels[name][version] = [arch]
-            else:
-                channels[name][version].append(arch)
+                channels[name].append(version)
         
         for channel in channels:
             track, risk = channel.split('/')
             for c in snap['channelMapWithMetrics']['channelMap']:
                 if c['channel']['track'] == track and c['channel']['risk'] == risk:
-                    c['versions'] = []
-                    for version in channels[channel]:
-                        c['versions'].append({
-                            'version': version,
-                            'architectures': channels[channel][version]
-                        })
+                    c['versions'] = channels[channel]
                     break
 
 
