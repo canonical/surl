@@ -32,6 +32,11 @@ setuptools.setup(
     setup_requires=[
         "flake8"
     ],
-    scripts=['surl_cli.py', 'surl_metrics.py', 'surl_storeops.py'],
+    scripts=[
+        'surl_cli.py',
+        'surl_metrics.py',
+        'surl_storeops.py',
+        'surl_month_in_snaps.py',
+    ],
     packages=setuptools.find_packages(),
 )
