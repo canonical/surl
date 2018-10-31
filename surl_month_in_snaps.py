@@ -72,7 +72,7 @@ def _get_channel_parts(channel):
     parts = channel.split('/')
     count = len(parts)
     branch = ''
-    
+
     if count == 1:
         track = 'latest'
         risk = parts[0]
@@ -88,7 +88,7 @@ def _get_channel_parts(channel):
         risk = parts[1]
         branch = parts[2]
     else:
-        raise ValueError('Too many parts to channel: {}'.format(channel))    
+        raise ValueError('Too many parts to channel: {}'.format(channel))
     return (track, risk, branch)
 
 
@@ -161,7 +161,7 @@ def get_channel_metrics(snap_id, config):
             'weeklyActive': weekly_active,
             'weeklyActive1moDelta': delta,
         })
-    
+
     return {
         'channelMap': data,
     }
@@ -200,7 +200,7 @@ def _channel_cmp(a, b):
     }
     if a == b:
         return 0
-    
+
     if a['track'] == 'latest' and b['track'] != 'latest':
         return -1
     if a['track'] != 'latest' and b['track'] == 'latest':
@@ -231,7 +231,7 @@ def get_snaps(config):
 
     snaps = []
     url = (
-        '{}/api/v1/snaps/search?size=500&scope=wide&'
+        '{}/api/v1/snaps/search?size=250&scope=wide&arch=wide&'
         'confinement=strict,classic,devmode&'
         'fields=snap_id,developer_id,media'
         .format(surl.CONSTANTS[config.store_env]['api_base_url']))
@@ -326,7 +326,7 @@ def add_channel_map_versions(snaps, config) -> list:
                 channels[name][version] = [arch]
             else:
                 channels[name][version].append(arch)
-        
+
         for channel in channels:
             track, risk = channel.split('/')
             for c in snap['channelMapWithMetrics']['channelMap']:
@@ -489,10 +489,10 @@ def trigger_marketo_campaign(campaign, leads, token, config):
     }
     for lead in leads:
         payload['input']['leads'].append({'id': lead})
-    
+
     response = requests.post(url, json=payload, headers=headers)
     _check_marketo_response(response)
-    
+
 
 def trigger_month_in_snaps_campaign(store_accounts, config):
     leads = []
@@ -524,7 +524,7 @@ def main():
         return 1
     except surl.CliDone:
         return 0
-    
+
     parser.add_argument('--marketo-root', required=True)
     parser.add_argument('--marketo-client-id', required=True)
     parser.add_argument('--snap-name', required=False)
@@ -536,7 +536,7 @@ def main():
     except KeyError:
         print('Set MARKETO_SECRET and try again.', file=sys.stderr)
         return 1
-    
+
     config = _refresh_discharge(config)
     snaps = []
     logging.info('getting snaps')
@@ -566,6 +566,6 @@ def main():
     logging.info('triggering {} emails'.format(len(store_account_ids)))
     trigger_month_in_snaps_campaign(store_account_ids, additional_config)
     return 0
-    
+
 if __name__ == '__main__':
     sys.exit(main())

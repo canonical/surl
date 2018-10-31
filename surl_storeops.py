@@ -27,7 +27,7 @@ def _get_search_results(config):
 
     snaps = []
     url = (
-        '{}/api/v1/snaps/search?size=500&scope=wide&'
+        '{}/api/v1/snaps/search?size=250&scope=wide&arch=wide&'
         'confinement=strict,classic,devmode&'
         'fields=snap_id,channel,confinement,media,origin,developer_validation,'
          'date_published,last_updated,sections'
