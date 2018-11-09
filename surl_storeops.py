@@ -24,6 +24,8 @@ def _make_partition(seq, size):
 
 def _get_search_results(config):
     headers = surl.DEFAULT_HEADERS.copy()
+    headers['Authorization'] = surl.get_authorization_header(
+        config.root, config.discharge)
 
     snaps = []
     url = (
@@ -34,7 +36,7 @@ def _get_search_results(config):
         .format(surl.CONSTANTS[config.store_env]['api_base_url']))
 
     while url is not None:
-        r = requests.get(url=url, headers=headers)
+        r = surl.store_request(config, method='get', url=url, headers=headers)
         r.raise_for_status()
         payload = r.json()
 
@@ -58,32 +60,11 @@ def _get_snap_metrics(filters, config):
     metrics = []
     for partition in _make_partition(filters, 400):
         payload = {"filters": partition}
-        r = requests.post(url=url, json=payload, headers=headers)
+        r = surl.store_request(config, method='post', url=url, json=payload, headers=headers)
         r.raise_for_status()
         metrics.extend(r.json()['metrics'])
 
     return metrics
-
-
-def _refresh_discharge(config):
-    headers = surl.DEFAULT_HEADERS.copy()
-    headers['Authorization'] = surl.get_authorization_header(
-        config.root, config.discharge)
-
-    url = '{}/dev/api/account'.format(
-        surl.CONSTANTS[config.store_env]['sca_base_url'])
-
-    r = requests.get(url=url, headers=headers)
-    if r.headers.get('WWW-Authenticate') == (
-            'Macaroon needs_refresh=1'):
-        discharge = surl.get_refreshed_discharge(
-            config.discharge, config.store_env)
-        config = surl.ClientConfig(
-            root=config.root, discharge=discharge, store_env=config.store_env,
-            path=config.path)
-        surl.save_config(config)
-
-    return config
 
 
 def format_date(timestamp):
@@ -119,7 +100,6 @@ def fetch_snaps(config):
     } for snap_id in snap_map.keys()]
 
     logger.info('Fetching metrics ...')
-    config = _refresh_discharge(config)
     metrics = _get_snap_metrics(filters, config)
     for m in metrics:
         snap_map[m['snap_id']].update({

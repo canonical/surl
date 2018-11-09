@@ -9,11 +9,11 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='surl',
-    version='0.7',
+    version='0.71',
     author='Celso Providelo',
     author_email='celso.providelo@canonical.com',
     url="https://github.com/cprov/surl",
-    license='LICENSE',
+    license='GPL-3.0',
     description='Ubuntu Store API thin wrapper.',
     long_description=long_description,
     long_description_content_type="text/markdown",
