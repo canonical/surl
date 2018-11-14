@@ -5,7 +5,9 @@ Ubuntu Store API thin wrapper
 
 ## Installing
 
-Use `snap`:
+[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/surl)
+
+Or simply use the `snap` CLI:
 
     $ snap install surl [--edge]
 
