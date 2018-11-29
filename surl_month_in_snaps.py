@@ -330,23 +330,6 @@ def add_channel_map_versions(snaps, config) -> list:
                     break
 
 
-def filter_snaps_without_metrics(snaps, minimum=10):
-    '''Filter out snaps that are not released to any channel or have fewer
-       installs than the specified minimum.
-
-       This should not be called prior to setting data in marketo as doing so
-       would prevent us from making updates to existing data structures when
-       those change. Only call prior to triggering campaigns.
-    '''
-    return list(
-        filter(
-            lambda x: (x['channelMapWithMetrics']['channelMap'] and
-                    x['channelMapWithMetrics']['weeklyActive'] >= minimum),
-            snaps
-        )
-    )
-
-
 def _refresh_discharge(config):
     headers = surl.DEFAULT_HEADERS.copy()
     headers['Authorization'] = surl.get_authorization_header(
@@ -426,80 +409,20 @@ def update_marketo_objects(snaps, config):
             post_to_marketo(snap, token, config)
 
 
-def mangle_for_marketo(snaps):
-    '''Reformatted data for marketo as a copy.'''
+def mangle_for_marketo(snaps, minimum=10):
+    '''Filter out snaps that are not released to any channel or have fewer
+       installs than the specified minimum (setting their metrics to empty).
+       Reformat data for Marketo as key/string pairs.'''
+
     mangled = copy.deepcopy(snaps)
     for snap in mangled:
-        snap['channelMapWithMetrics'] = json.dumps(snap['channelMapWithMetrics'])
+        metrics = snap['channelMapWithMetrics']
+        if metrics['channelMap'] and metrics['weeklyActive'] >= minimum:
+                snap['channelMapWithMetrics'] = json.dumps(metrics)
+        else:
+                snap['channelMapWithMetrics'] = '{}'
         del snap['snapID']
     return mangled
-
-
-def get_store_accounts(snaps):
-    return set([snap['snapStoreAccountID'] for snap in snaps])
-
-
-def get_lead_for_store_account(account, token, config):
-    headers = {
-        'Content-Type': 'application/json; charset=UTF-8',
-    }
-    path = '/rest/v1/leads.json'
-    url = urllib.parse.urljoin(config.marketo_root, path)
-    params = {
-        'access_token': token,
-        'fields': 'id',
-        'filterType': 'snapStoreAccountID',
-        'filterValues': account,
-    }
-    url += '?' + urllib.parse.urlencode(params)
-    response = requests.get(url, headers=headers)
-    _check_marketo_response(response)
-    response_json = response.json()
-    if not response_json['result']:
-        # Lead does not exist.
-        return None
-    else:
-        return response_json['result'][0]['id']
-
-
-def trigger_marketo_campaign(campaign, leads, token, config):
-    headers = {
-        'Content-Type': 'application/json; charset=UTF-8',
-    }
-    path = '/rest/v1/campaigns/{}/trigger.json'.format(campaign)
-    url = urllib.parse.urljoin(config.marketo_root, path)
-    params = {
-        'access_token': token,
-    }
-    url += '?' + urllib.parse.urlencode(params)
-    payload = {
-        'input': {
-            'leads': [],
-        }
-    }
-    for lead in leads:
-        payload['input']['leads'].append({'id': lead})
-    
-    response = requests.post(url, json=payload, headers=headers)
-    _check_marketo_response(response)
-    
-
-def trigger_month_in_snaps_campaign(store_accounts, config):
-    leads = []
-    token = _get_marketo_access_token(config)
-    for account in store_accounts:
-        try:
-            lead = get_lead_for_store_account(account, token, config)
-        except MarketoTokenExpired:
-            token = _get_marketo_access_token(config)
-            lead = get_lead_for_store_account(account, token, config)
-        if lead:
-            leads.append(lead)
-    try:
-        trigger_marketo_campaign('9465', leads, token, config)
-    except MarketoTokenExpired:
-        token = _get_marketo_access_token(config)
-        trigger_marketo_campaign('9465', leads, token, config)
 
 
 def main():
@@ -550,11 +473,6 @@ def main():
     add_channel_map_versions(snaps, config)
     logging.info('updating marketo')
     update_marketo_objects(mangle_for_marketo(snaps), additional_config)
-    logging.info('calling marketo campaign')
-    snaps = filter_snaps_without_metrics(snaps)
-    store_account_ids = get_store_accounts(snaps)
-    logging.info('triggering {} emails'.format(len(store_account_ids)))
-    trigger_month_in_snaps_campaign(store_account_ids, additional_config)
     return 0
     
 if __name__ == '__main__':
