@@ -46,6 +46,10 @@ class MarketoTokenExpired(Exception):
     pass
 
 
+class MarketoSystemError(Exception):
+    pass
+
+
 class SnapNotFound(Exception):
     pass
 
@@ -375,6 +379,8 @@ def _check_marketo_response(response):
     if not response_json["success"]:
         if response_json["errors"][0]["code"] == "602":
             raise MarketoTokenExpired()
+        elif response_json["errors"][0]["code"] == "611":
+            raise MarketoSystemError()
         else:
             raise Exception(response.text)
 
@@ -389,6 +395,11 @@ def _check_marketo_response(response):
             raise Exception(response.text)
 
 
+@retry(
+    reraise=True,
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception_type(MarketoSystemError),
+)
 def post_to_marketo(snap, token, config):
     headers = {"Content-Type": "application/json; charset=UTF-8"}
     path = "/rest/v1/customobjects/snap_c.json"
@@ -443,11 +454,12 @@ def main():
     parser.add_argument("--snap-id", required=False)
     parser.add_argument("--developer-id", required=False)
     additional_config = parser.parse_args(remainder)
-    try:
-        additional_config.marketo_secret = os.environ["MARKETO_SECRET"]
-    except KeyError:
-        print("Set MARKETO_SECRET and try again.", file=sys.stderr)
-        return 1
+    if additional_config.marketo_root:
+        try:
+            additional_config.marketo_secret = os.environ["MARKETO_SECRET"]
+        except KeyError:
+            print("Set MARKETO_SECRET and try again.", file=sys.stderr)
+            return 1
 
     config = _refresh_discharge(config)
     snaps = []
@@ -474,8 +486,12 @@ def main():
     add_weekly_active_totals(snaps)
     logging.info("getting versions")
     add_channel_map_versions(snaps, config)
-    logging.info("updating marketo")
-    update_marketo_objects(mangle_for_marketo(snaps), additional_config)
+    if additional_config.marketo_secret:
+        logging.info("updating marketo")
+        update_marketo_objects(mangle_for_marketo(snaps), additional_config)
+    else:
+        import pprint
+        pprint.pprint(json.dumps(snaps))
     return 0
 
 
