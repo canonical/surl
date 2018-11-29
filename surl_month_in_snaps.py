@@ -57,7 +57,7 @@ class SnapNotFound(Exception):
 @retry(
     reraise=True,
     stop=stop_after_attempt(3),
-    retry=retry_if_exception_type(requests.exceptions.HTTPError),
+    retry=(retry_if_exception_type(requests.exceptions.HTTPError) | retry_if_exception_type(requests.exceptions.ConnectionError)),
 )
 def get_snap_info(snap_name, config):
     headers = surl.DEFAULT_HEADERS.copy()
