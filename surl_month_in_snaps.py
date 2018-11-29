@@ -11,6 +11,7 @@ import surl
 import json
 import functools
 import copy
+from tenacity import retry, stop_after_attempt, retry_if_exception_type
 
 # Schema:
 # channelMapWithMetrics = {
@@ -48,6 +49,11 @@ class SnapNotFound(Exception):
     pass
 
 
+@retry(
+    reraise=True,
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception_type(requests.exceptions.HTTPError),
+)
 def get_snap_info(snap_name, config):
     headers = surl.DEFAULT_HEADERS.copy()
     headers['Authorization'] = surl.get_authorization_header(
