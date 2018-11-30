@@ -143,6 +143,9 @@ def get_channel_metrics(snap_id, config):
     )
 
     current = requests.post(url=url, json=payload, headers=headers)
+    if current.status_code != requests.codes.ok:
+        print(current.headers)
+        print(current.text)
     current.raise_for_status()
     current = current.json()
 
@@ -189,6 +192,37 @@ def add_weekly_active_totals(snaps):
 
         active = sum(channel["weeklyActive"] for channel in channel_map)
         snap["channelMapWithMetrics"]["weeklyActive"] = active
+
+
+def add_missing_channels(snaps):
+    """The metrics API will not return channels without subscribers.
+       As not showing some channels may confuse readers, fill in the missing
+       channels.
+    """
+
+    for snap in snaps:
+        channel_map = snap["channelMapWithMetrics"]["channelMap"]
+        for risk in ("stable", "candidate", "beta", "edge"):
+            found = False
+            for channel in channel_map:
+                if channel["channel"]["track"] != "latest":
+                    continue
+                if channel["channel"]["risk"] != risk:
+                    continue
+                if channel["channel"].get("branch"):
+                    continue
+
+                found = True
+                break
+
+            if not found:
+                channel_map.append(
+                    {
+                        "channel": {"track": "latest", "risk": risk},
+                        "weeklyActive": 0,
+                        "weeklyActive1moDelta": 0,
+                    }
+                )
 
 
 def _channel_cmp(a, b):
@@ -484,6 +518,7 @@ def main():
     logging.info("getting metrics")
     add_channel_map_metrics(snaps, config)
     add_weekly_active_totals(snaps)
+    add_missing_channels(snaps)
     logging.info("getting versions")
     add_channel_map_versions(snaps, config)
     if additional_config.marketo_secret:
