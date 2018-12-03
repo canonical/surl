@@ -1,8 +1,6 @@
 name: surl
-version: 0.7
 summary: Ubuntu Store API thin wrapper.
-description: |
-  Utility for easying authorization for the Ubuntu Store API.
+adopt-info: surl
 confinement: strict
 grade: stable
 
@@ -24,6 +22,7 @@ parts:
   surl:
     plugin: python
     source: .
+    parse-info: [setup.py]
     build-packages:
       - libffi-dev
     stage-packages:

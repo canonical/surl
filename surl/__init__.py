@@ -165,7 +165,7 @@ def get_config_from_cli(parser, auth_dir):
     args, remainder = parser.parse_known_args()
 
     if args.list_auth:
-        print('Available credendials:')
+        print('Available credentials:')
         for ident, store_env in list_configs(auth_dir):
             print('  {} ({})'.format(ident, store_env))
         raise CliDone()
@@ -279,6 +279,26 @@ def get_refreshed_discharge(discharge, store_env):
     return response.json()['discharge_macaroon']
 
 
+def store_request(config, **kwargs):
+    r = requests.request(**kwargs)
+
+    # Refresh discharge if necessary.
+    if r.headers.get('WWW-Authenticate') == 'Macaroon needs_refresh=1':
+        discharge = get_refreshed_discharge(
+            config.discharge, config.store_env)
+        config = ClientConfig(
+            root=config.root, discharge=discharge, store_env=config.store_env,
+            path=config.path)
+        save_config(config)
+        headers = kwargs.get('headers', {})
+        headers.update(
+            {'Authorization': get_authorization_header(
+                config.root, config.discharge)})
+        r = requests.request(**kwargs)
+
+    return r
+
+
 def main():
     auth_dir = os.path.abspath(os.environ.get('SNAP_USER_COMMON', '.'))
 
@@ -357,23 +377,8 @@ def main():
         print('\033[1m**********************************\033[0m',
               file=sys.stderr, flush=True)
 
-    response = requests.request(
-        url=url, method=method, json=data, headers=headers, stream=True)
-
-    # Refresh discharge if necessary.
-    if response.headers.get('WWW-Authenticate') == (
-            'Macaroon needs_refresh=1'):
-        discharge = get_refreshed_discharge(
-            config.discharge, config.store_env)
-        config = ClientConfig(
-            root=config.root, discharge=discharge, store_env=config.store_env,
-            path=config.path)
-        save_config(config)
-        headers.update(
-            {'Authorization': get_authorization_header(
-                config.root, config.discharge)})
-        response = requests.request(
-            url=url, method=method, json=data, headers=headers, stream=True)
+    response = store_request(
+        config, url=url, method=method, json=data, headers=headers, stream=True)
 
     if args.debug:
         print('\033[1m******** response headers ********\033[0m',

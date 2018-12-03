@@ -25,7 +25,7 @@ def get_snap_id(snap_name, config):
 
     url = '{}/dev/api/snaps/info/{}'.format(
         surl.CONSTANTS[config.store_env]['sca_base_url'], snap_name)
-    r = requests.get(url=url, headers=headers)
+    r = surl.store_request(config, method='get', url=url, headers=headers)
     r.raise_for_status()
     return r.json()['snap_id']
 
@@ -49,7 +49,7 @@ def get_publisher_metric(snap_id, metric_name, config):
         surl.CONSTANTS[config.store_env]['sca_base_url'])
 
     payload = {"filters": filters}
-    r = requests.post(url=url, json=payload, headers=headers)
+    r = surl.store_request(config, method='post', url=url, json=payload, headers=headers)
     r.raise_for_status()
     return r.json()['metrics']
 
