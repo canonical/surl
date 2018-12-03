@@ -326,10 +326,14 @@ def add_channel_map_metrics(snaps, config):
     """
     for snap in snaps:
         snap_id = snap["snapID"]
-        channel_metrics = get_channel_metrics(snap_id, config)
-        channel_map = channel_metrics["channelMap"]
-        channel_metrics["channelMap"] = sort_metrics_by_channel(channel_map)
-        snap["channelMapWithMetrics"] = channel_metrics
+        snap["channelMapWithMetrics"] = get_channel_metrics(snap_id, config)
+
+
+def sort_channels(snaps):
+    for snap in snaps:
+        channel_metrics = snap["channelMapWithMetrics"]
+        sorted_channels = sort_metrics_by_channel(channel_metrics["channelMap"])
+        channel_metrics["channelMap"] = sorted_channels
 
 
 def add_channel_map_versions(snaps, config) -> list:
@@ -519,6 +523,7 @@ def main():
     add_channel_map_metrics(snaps, config)
     add_weekly_active_totals(snaps)
     add_missing_channels(snaps)
+    sort_channels(snaps)
     logging.info("getting versions")
     add_channel_map_versions(snaps, config)
     if additional_config.marketo_secret:
