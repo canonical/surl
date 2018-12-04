@@ -23,14 +23,13 @@ parts:
     plugin: python
     source: .
     parse-info: [setup.py]
+    requirements: requirements.txt
     build-packages:
       - libffi-dev
     stage-packages:
       - libsodium18
       - libsodium-dev
     python-packages:
-      - requests
-      - pymacaroons
       - tabulate
       - iso8601
     prime:

@@ -470,7 +470,7 @@ def mangle_for_marketo(snaps, minimum=10):
         if metrics["channelMap"] and metrics["weeklyActive"] >= minimum:
             snap["channelMapWithMetrics"] = json.dumps(metrics)
         else:
-            snap["channelMapWithMetrics"] = "{}"
+            snap["channelMapWithMetrics"] = ""
         del snap["snapID"]
     return mangled
 
@@ -486,8 +486,8 @@ def main():
     except surl.CliDone:
         return 0
 
-    parser.add_argument("--marketo-root", required=True)
-    parser.add_argument("--marketo-client-id", required=True)
+    parser.add_argument("--marketo-root", required=False)
+    parser.add_argument("--marketo-client-id", required=False)
     parser.add_argument("--snap-name", required=False)
     parser.add_argument("--snap-id", required=False)
     parser.add_argument("--developer-id", required=False)
