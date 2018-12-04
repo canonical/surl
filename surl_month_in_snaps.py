@@ -470,7 +470,7 @@ def mangle_for_marketo(snaps, minimum=10):
         if metrics["channelMap"] and metrics["weeklyActive"] >= minimum:
             snap["channelMapWithMetrics"] = json.dumps(metrics)
         else:
-            snap["channelMapWithMetrics"] = "{}"
+            snap["channelMapWithMetrics"] = ""
         del snap["snapID"]
     return mangled
 
