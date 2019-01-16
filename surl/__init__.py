@@ -161,6 +161,15 @@ def get_config_from_cli(parser, auth_dir):
     parser.add_argument(
         '-c', '--channel', action="append", dest='channels',
         choices=['stable', 'candidate', 'beta', 'edge'])
+    parser.add_argument(
+        '--allowed-store', action='append', dest='allowed_stores',
+        help=("Indicate the store id where the restricted auth can work. Can "
+              "be used several times to indicate multiple stores."))
+    parser.add_argument(
+        '--snap', action='append', dest='snaps',
+        help=("Indicate the name of the snap on which the restricted auth "
+              "can work. Can be used several times to indicate multiple "
+              "snaps."))
 
     args, remainder = parser.parse_known_args()
 
@@ -197,7 +206,10 @@ def get_config_from_cli(parser, auth_dir):
     try:
         root, discharge = get_store_authorization(
             args.email, permissions=args.permissions,
-            channels=args.channels, store_env=store_env)
+            channels=args.channels, store_env=store_env,
+            allowed_stores=args.allowed_stores, snaps=args.snaps)
+    except CliError:
+        raise
     except Exception as e:
         raise CliError('Authorization failed! Double-check password and 2FA.')
 
@@ -211,7 +223,8 @@ def get_config_from_cli(parser, auth_dir):
 
 
 def get_store_authorization(
-        email, permissions=None, channels=None, store_env=None):
+        email, permissions=None, channels=None, store_env=None,
+        allowed_stores=None, snaps=None):
     """Return the serialised root and discharge macaroon.
 
     Get a permissions macaroon from SCA and discharge it in SSO.
@@ -225,12 +238,18 @@ def get_store_authorization(
             ).strftime('%Y-%m-%d 00:00:00')
     }
     if channels:
-        sca_data.update({
-            'channels': channels
-        })
+        sca_data['channels'] = channels
+    if allowed_stores:
+        sca_data['store_ids'] = allowed_stores
+    if snaps:
+        sca_data['packages'] = [{'name': snap} for snap in snaps]
+
     response = requests.request(
         url='{}/dev/api/acl/'.format(CONSTANTS[store_env]['sca_base_url']),
         method='POST', json=sca_data, headers=headers)
+    if response.status_code != 200:
+        error = response.json()['title']
+        raise CliError("Error {}: {}".format(response.status_code, error))
     root = response.json()['macaroon']
 
     caveat, = [
