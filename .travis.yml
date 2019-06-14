@@ -11,8 +11,8 @@ script: python -m unittest tests
 
 jobs:
   include:
-  - stage: deploy
-    python: 'pypy3.5'
+  - stage: 'Snap build and push'
+    python: '3.5'
     addons:
       apt:
         packages:
