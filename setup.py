@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='surl',
-    version='0.72',
+    version='0.7.2',
     author='Celso Providelo',
     author_email='celso.providelo@canonical.com',
     url="https://github.com/cprov/surl",
