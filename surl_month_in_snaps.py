@@ -61,9 +61,10 @@ class SnapNotFound(Exception):
 )
 def get_snap_info(snap_name, config):
     headers = surl.DEFAULT_HEADERS.copy()
-    headers["Authorization"] = surl.get_authorization_header(
-        config.root, config.discharge
+    auth_header = surl.get_authorization_header(
+        config.root, config.discharge, store_env=config.store_env
     )
+    headers.update(auth_header)
     headers["Snap-Device-Series"] = "16"
 
     url = "{}/v2/snaps/info/{}".format(
@@ -119,9 +120,10 @@ def get_channel_metrics(snap_id, config):
     """
 
     headers = surl.DEFAULT_HEADERS.copy()
-    headers["Authorization"] = surl.get_authorization_header(
-        config.root, config.discharge
+    auth_header = surl.get_authorization_header(
+        config.root, config.discharge, store_env=config.store_env
     )
+    headers.update(auth_header)
 
     now = datetime.datetime.utcnow()
     # Account for time spent mining the metrics daily (~4h)
@@ -378,9 +380,10 @@ def add_channel_map_versions(snaps, config) -> list:
 
 def _refresh_discharge(config):
     headers = surl.DEFAULT_HEADERS.copy()
-    headers["Authorization"] = surl.get_authorization_header(
-        config.root, config.discharge
+    auth_header = surl.get_authorization_header(
+        config.root, config.discharge, store_env=config.store_env
     )
+    headers.update(auth_header)
 
     url = "{}/dev/api/account".format(surl.CONSTANTS[config.store_env]["sca_base_url"])
 

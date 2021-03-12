@@ -20,8 +20,10 @@ logger.setLevel(logging.INFO)
 
 def get_snap_id(snap_name, config):
     headers = surl.DEFAULT_HEADERS.copy()
-    headers['Authorization'] = surl.get_authorization_header(
-        config.root, config.discharge)
+    auth_header = surl.get_authorization_header(
+        config.root, config.discharge, store_env=config.store_env
+    )
+    headers.update(auth_header)
 
     url = '{}/dev/api/snaps/info/{}'.format(
         surl.CONSTANTS[config.store_env]['sca_base_url'], snap_name)
@@ -32,8 +34,10 @@ def get_snap_id(snap_name, config):
 
 def get_publisher_metric(snap_id, metric_name, config):
     headers = surl.DEFAULT_HEADERS.copy()
-    headers['Authorization'] = surl.get_authorization_header(
-        config.root, config.discharge)
+    auth_header = surl.get_authorization_header(
+        config.root, config.discharge, store_env=config.store_env
+    )
+    headers.update(auth_header)
 
     # account for time spend mining the metrics daily (~4h).
     yesterday = (
