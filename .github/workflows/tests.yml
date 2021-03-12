@@ -1,0 +1,22 @@
+name: Unit-Tests
+on:
+    push:
+        branches:
+            - main
+            - master
+    pull_request:
+        branches:
+            - main
+            - master
+
+jobs:
+    unit-tests:
+        name: Unit Tests
+        runs-on: ubuntu-16.04
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v2
+            - name: Run tests
+              run: |
+                  python -m unittest tests
+
