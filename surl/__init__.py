@@ -262,7 +262,9 @@ def get_config_from_cli(parser, auth_dir):
     except CliError:
         raise
     except Exception as e:
-        raise CliError("Authorization failed! Double-check password and 2FA.")
+        raise CliError(
+            "Authorization failed! Double-check password and 2FA. (%s)" % e
+        )
 
     config = ClientConfig(
         root=root, discharge=discharge, store_env=store_env, path=auth_path

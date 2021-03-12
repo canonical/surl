@@ -6,7 +6,6 @@ import iso8601
 import json
 import logging
 import os
-import requests
 import sys
 
 import surl
@@ -19,7 +18,7 @@ logger.setLevel(logging.INFO)
 
 def _make_partition(seq, size):
     for i in range(0, len(seq), size):
-        yield seq[i : i + size]
+        yield seq[i : i + size]  # noqa
 
 
 def _get_search_results(config):
