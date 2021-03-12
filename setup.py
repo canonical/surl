@@ -8,13 +8,13 @@ with open("README.md", "r") as fh:
 
 
 setuptools.setup(
-    name='surl',
-    version='0.7.3',
-    author='Celso Providelo',
-    author_email='celso.providelo@canonical.com',
+    name="surl",
+    version="0.7.3",
+    author="Celso Providelo",
+    author_email="celso.providelo@canonical.com",
     url="https://github.com/cprov/surl",
-    license='GPL-3.0',
-    description='Ubuntu Store API thin wrapper.',
+    license="GPL-3.0",
+    description="Ubuntu Store API thin wrapper.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     classifiers=(
@@ -28,15 +28,13 @@ setuptools.setup(
         "tabulate",
         "iso8601",
     ],
-    test_suite='tests',
-    setup_requires=[
-        "flake8"
-    ],
+    test_suite="tests",
+    setup_requires=["flake8"],
     scripts=[
-        'surl_cli.py',
-        'surl_metrics.py',
-        'surl_storeops.py',
-        'surl_month_in_snaps.py',
+        "surl_cli.py",
+        "surl_metrics.py",
+        "surl_storeops.py",
+        "surl_month_in_snaps.py",
     ],
     packages=setuptools.find_packages(),
 )
