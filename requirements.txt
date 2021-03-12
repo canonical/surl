@@ -1,3 +1,6 @@
+iso8601
+macaroonbakery
 pymacaroons
 requests
+tabulate
 tenacity

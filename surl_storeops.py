@@ -24,8 +24,10 @@ def _make_partition(seq, size):
 
 def _get_search_results(config):
     headers = surl.DEFAULT_HEADERS.copy()
-    headers['Authorization'] = surl.get_authorization_header(
-        config.root, config.discharge)
+    auth_header = surl.get_authorization_header(
+        config.root, config.discharge, store_env=config.store_env
+    )
+    headers.update(auth_header)
 
     snaps = []
     url = (
@@ -51,8 +53,10 @@ def _get_search_results(config):
 
 def _get_snap_metrics(filters, config):
     headers = surl.DEFAULT_HEADERS.copy()
-    headers['Authorization'] = surl.get_authorization_header(
-        config.root, config.discharge)
+    auth_header = surl.get_authorization_header(
+        config.root, config.discharge, store_env=config.store_env
+    )
+    headers.update(auth_header)
 
     url = '{}/dev/api/snaps/metrics'.format(
         surl.CONSTANTS[config.store_env]['sca_base_url'])
