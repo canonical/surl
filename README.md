@@ -54,4 +54,13 @@ Registering a snap name in staging:
       https://dashboard.staging.snapcraft.io/dev/api/register-name/
     {"snap_id": "wKFeK2U7Y2CB53vRJwg9MeR9bqfPvtZK"}
 
+
+## Hacking
+
+A simple makefile is provided. It assumes internet access, the main targets are:
+
+`make lint` to verify syntax and formatting.
+'make black' to apply black formatting to the project's files.
+`make test` to run unit tests.
+
 Happy hacking!
