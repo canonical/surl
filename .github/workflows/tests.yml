@@ -16,6 +16,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v2
+            - name: install virtualenv
+              run: sudo apt-get install python3-virtualenv
             - name: Run unit tests
               run: |
                  make
@@ -26,6 +28,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v2
+            - name: install virtualenv
+              run: sudo apt-get install python3-virtualenv
             - name: Perform black/lint tests
               run: |
                  make lint
