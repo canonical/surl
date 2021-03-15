@@ -29,7 +29,7 @@ parts:
     build-packages:
       - libffi-dev
     stage-packages:
-      - libsodium18
+      - libsodium23
       - libsodium-dev
     python-packages:
       - tabulate
