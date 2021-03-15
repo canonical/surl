@@ -3,7 +3,7 @@ summary: Ubuntu Store API thin wrapper.
 adopt-info: surl
 confinement: strict
 grade: stable
-base: core
+base: core20
 
 apps:
   surl:

@@ -57,7 +57,10 @@ class SnapNotFound(Exception):
 @retry(
     reraise=True,
     stop=stop_after_attempt(3),
-    retry=(retry_if_exception_type(requests.exceptions.HTTPError) | retry_if_exception_type(requests.exceptions.ConnectionError)),
+    retry=(
+        retry_if_exception_type(requests.exceptions.HTTPError)
+        | retry_if_exception_type(requests.exceptions.ConnectionError)
+    ),
 )
 def get_snap_info(snap_name, config):
     headers = surl.DEFAULT_HEADERS.copy()
@@ -198,8 +201,8 @@ def add_weekly_active_totals(snaps):
 
 def add_missing_channels(snaps):
     """The metrics API will not return channels without subscribers.
-       As not showing some channels may confuse readers, fill in the missing
-       channels.
+    As not showing some channels may confuse readers, fill in the missing
+    channels.
     """
 
     for snap in snaps:
@@ -230,16 +233,16 @@ def add_missing_channels(snaps):
 def _channel_cmp(a, b):
     """Key function to sort channel names.
 
-       Sorts as:
-       latest/stable
-       latest/stable/hotfix
-       latest/candidate
-       latest/beta
-       latest/edge
-       ingest/stable
-       10/stable
-       10/candidate
-       9/stable
+    Sorts as:
+    latest/stable
+    latest/stable/hotfix
+    latest/candidate
+    latest/beta
+    latest/edge
+    ingest/stable
+    10/stable
+    10/candidate
+    9/stable
     """
     channels = {"stable": 4, "candidate": 3, "beta": 2, "edge": 1}
     if a == b:
@@ -334,7 +337,9 @@ def add_channel_map_metrics(snaps, config):
 def sort_channels(snaps):
     for snap in snaps:
         channel_metrics = snap["channelMapWithMetrics"]
-        sorted_channels = sort_metrics_by_channel(channel_metrics["channelMap"])
+        sorted_channels = sort_metrics_by_channel(
+            channel_metrics["channelMap"]
+        )
         channel_metrics["channelMap"] = sorted_channels
 
 
@@ -373,7 +378,10 @@ def add_channel_map_versions(snaps, config) -> list:
         for channel in channels:
             track, risk = channel.split("/")
             for c in snap["channelMapWithMetrics"]["channelMap"]:
-                if c["channel"]["track"] == track and c["channel"]["risk"] == risk:
+                if (
+                    c["channel"]["track"] == track
+                    and c["channel"]["risk"] == risk
+                ):
                     c["versions"] = channels[channel]
                     break
 
@@ -385,11 +393,15 @@ def _refresh_discharge(config):
     )
     headers.update(auth_header)
 
-    url = "{}/dev/api/account".format(surl.CONSTANTS[config.store_env]["sca_base_url"])
+    url = "{}/dev/api/account".format(
+        surl.CONSTANTS[config.store_env]["sca_base_url"]
+    )
 
     r = requests.get(url=url, headers=headers)
     if r.headers.get("WWW-Authenticate") == ("Macaroon needs_refresh=1"):
-        discharge = surl.get_refreshed_discharge(config.discharge, config.store_env)
+        discharge = surl.get_refreshed_discharge(
+            config.discharge, config.store_env
+        )
         config = surl.ClientConfig(
             root=config.root,
             discharge=discharge,
@@ -464,8 +476,8 @@ def update_marketo_objects(snaps, config):
 
 def mangle_for_marketo(snaps, minimum=10):
     """Filter out snaps that are not released to any channel or have fewer
-       installs than the specified minimum (setting their metrics to empty).
-       Reformat data for Marketo as key/string pairs."""
+    installs than the specified minimum (setting their metrics to empty).
+    Reformat data for Marketo as key/string pairs."""
 
     mangled = copy.deepcopy(snaps)
     for snap in mangled:
@@ -534,6 +546,7 @@ def main():
         update_marketo_objects(mangle_for_marketo(snaps), additional_config)
     else:
         import pprint
+
         pprint.pprint(json.dumps(snaps))
     return 0
 
