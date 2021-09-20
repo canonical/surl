@@ -4,6 +4,7 @@ import datetime
 import getpass
 import json
 import os
+import socket
 import sys
 
 from collections import namedtuple
@@ -294,6 +295,17 @@ def _get_authorization_payload(permissions, channels, snaps, allowed_stores):
     return sca_data
 
 
+def _get_bakery_auth_header(root, discharge):
+    macaroons = "[{}]".format(
+        ",".join(map(utils.macaroon_to_json_string, [root, discharge]))
+    )
+    # serialize macaroons the bakery-way
+    all_macaroons = base64.urlsafe_b64encode(utils.to_bytes(macaroons)).decode(
+        "ascii"
+    )
+    return {"Macaroons": all_macaroons}
+
+
 def _get_store_authorization_using_candid(
     permissions=None,
     channels=None,
@@ -309,6 +321,8 @@ def _get_store_authorization_using_candid(
     sca_data = _get_authorization_payload(
         permissions, channels, snaps, allowed_stores
     )
+    # set additional macaroon description
+    sca_data["description"] = "surl @ {}".format(socket.gethostname())
 
     response = requests.request(
         url="{}/api/v2/tokens".format(CONSTANTS[store_env]["sca_base_url"]),
@@ -326,7 +340,16 @@ def _get_store_authorization_using_candid(
     m = bakery.Macaroon.from_dict(serialized_root)
     root, discharge = bakery.discharge_all(m, client.acquire_discharge)
 
-    return root.serialize(), discharge.serialize()
+    # with the Candid-discharged pair, get the exchanged SnapStore macaroon
+    auth_header = _get_bakery_auth_header(root, discharge)
+    exchange_url = "{}/api/v2/tokens/exchange".format(
+        CONSTANTS[store_env]["sca_base_url"]
+    )
+    r = client.request("POST", exchange_url, json={}, headers=auth_header)
+    # get the (serialized) exchanged macaroon from the response
+    macaroon = r.json()["macaroon"]
+
+    return macaroon, None
 
 
 def _get_store_authorization(
@@ -430,25 +453,23 @@ def get_store_authorization(
 def get_authorization_header(root, discharge, store_env=None):
     """Bind root and discharge returning the authorization header."""
     root = Macaroon.deserialize(root)
-    discharge = Macaroon.deserialize(discharge)
-
-    if discharge.location == CONSTANTS[store_env]["sso_location"]:
-        # U1 SSO macaroons auth
-        bound = root.prepare_for_request(discharge)
-        authorization = "Macaroon root={}, discharge={}".format(
-            root.serialize(), bound.serialize()
-        )
-        return {"Authorization": authorization}
+    if discharge is not None:
+        discharge = Macaroon.deserialize(discharge)
+        if discharge.location == CONSTANTS[store_env]["sso_location"]:
+            # U1 SSO macaroons auth
+            bound = root.prepare_for_request(discharge)
+            authorization = "Macaroon root={}, discharge={}".format(
+                root.serialize(), bound.serialize()
+            )
+            return {"Authorization": authorization}
+        else:
+            # to-be-deprecated: kept for backwards compatibility and
+            # existing Candid macaroons
+            return _get_bakery_auth_header(root, discharge)
     else:
-        # Candid based macaroon auth
-        macaroons = "[%s]" % ",".join(
-            map(utils.macaroon_to_json_string, [root, discharge])
-        )
-        # serialize macaroons the bakery-way
-        all_macaroons = base64.urlsafe_b64encode(
-            utils.to_bytes(macaroons)
-        ).decode("ascii")
-        return {"Macaroons": all_macaroons}
+        # snapstore-only macaroon auth
+        authorization = "Macaroon {}".format(root.serialize())
+        return {"Authorization": authorization}
 
 
 def get_refreshed_discharge(discharge, store_env):
