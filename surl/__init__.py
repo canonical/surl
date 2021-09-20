@@ -296,8 +296,8 @@ def _get_authorization_payload(permissions, channels, snaps, allowed_stores):
 
 
 def _get_bakery_auth_header(root, discharge):
-    macaroons = "[%s]" % ",".join(
-        map(utils.macaroon_to_json_string, [root, discharge])
+    macaroons = "[{}]".format(
+        ",".join(map(utils.macaroon_to_json_string, [root, discharge]))
     )
     # serialize macaroons the bakery-way
     all_macaroons = base64.urlsafe_b64encode(utils.to_bytes(macaroons)).decode(
