@@ -28,6 +28,8 @@ parts:
       - requirements.txt
     build-packages:
       - libffi-dev
+      - libsodium23
+      - libsodium-dev
     stage-packages:
       - libsodium23
       - libsodium-dev
