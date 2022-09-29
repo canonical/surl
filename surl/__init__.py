@@ -184,6 +184,7 @@ def get_config_from_cli(parser, auth_dir):
             "package_update",
             "package_upload",
             "package_upload_request",
+            "package_view_metadata",
             "store_admin",
             "store_review",
         ],
