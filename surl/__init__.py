@@ -42,18 +42,12 @@ DEFAULT_HEADERS = {
 
 CONSTANTS = {
     "local": {
-        "sso_location": os.environ.get(
-            "SURL_SSO_LOCATION", "login.staging.ubuntu.com"
-        ),
+        "sso_location": os.environ.get("SURL_SSO_LOCATION", "login.staging.ubuntu.com"),
         "sso_base_url": os.environ.get(
             "SURL_SSO_BASE_URL", "https://login.staging.ubuntu.com"
         ),
-        "sca_base_url": os.environ.get(
-            "SURL_SCA_BASE_URL", "http://0.0.0.0:8000"
-        ),
-        "api_base_url": os.environ.get(
-            "SURL_API_BASE_URL", "http://0.0.0.0:8000"
-        ),
+        "sca_base_url": os.environ.get("SURL_SCA_BASE_URL", "http://0.0.0.0:8000"),
+        "api_base_url": os.environ.get("SURL_API_BASE_URL", "http://0.0.0.0:8000"),
     },
     "staging": {
         "sso_location": "login.staging.ubuntu.com",
@@ -103,9 +97,7 @@ class CliDone(Exception):
     pass
 
 
-ClientConfig = namedtuple(
-    "ClientConfig", ["root", "discharge", "store_env", "path"]
-)
+ClientConfig = namedtuple("ClientConfig", ["root", "discharge", "store_env", "path"])
 
 
 def load_config(path):
@@ -119,9 +111,7 @@ def load_config(path):
             )
         except json.decoder.JSONDecodeError:
             raise ConfigError()
-    return ClientConfig(
-        root=root, discharge=discharge, store_env=store_env, path=path
-    )
+    return ClientConfig(root=root, discharge=discharge, store_env=store_env, path=path)
 
 
 def save_config(config):
@@ -173,9 +163,7 @@ def get_config_from_cli(parser, auth_dir):
     )
     # mutually exclusive: email CLI U1 SSO auth vs candid web login auth
     exclusive_group = parser.add_mutually_exclusive_group()
-    exclusive_group.add_argument(
-        "-e", "--email", default=os.environ.get("STORE_EMAIL")
-    )
+    exclusive_group.add_argument("-e", "--email", default=os.environ.get("STORE_EMAIL"))
     exclusive_group.add_argument("--web-login", action="store_true")
 
     # NOTE: surl will be smart enough to figure this out
@@ -236,18 +224,17 @@ def get_config_from_cli(parser, auth_dir):
         except ConfigError:
             raise CliError(
                 "** Deprecated or Broken authentication file, "
-                "please delete it and login again:\n  $ rm {}".format(
-                    auth_path
-                )
+                "please delete it and login again:\n  $ rm {}".format(auth_path)
             )
 
         return config, remainder
 
     # TODO: change this to use either snap or charm based on URL
-    packages = [endpoints.Package(name, "snap") for name in args.snaps] if args.snaps else []
+    packages = (
+        [endpoints.Package(name, "snap") for name in args.snaps] if args.snaps else []
+    )
     # NOTE: this will go away when we transition to click
     permissions = args.permissions or ["package_access"]
-
 
     # NOTE: surl will eventually figure this out based on the URL
     store_env = args.store
@@ -261,37 +248,35 @@ def get_config_from_cli(parser, auth_dir):
 
         store_client = get_client(args.web_login, args.store)
         if not args.web_login:
-            password = getpass(f"Password for {args.email}: ")  
+            password = getpass(f"Password for {args.email}: ")
             if args.store == "production":
-                    otp = input(f"Second-factor auth for {args.store}: ")
+                otp = input(f"Second-factor auth for {args.store}: ")
 
         credentials = store_client.login(
             permissions=permissions,
             channels=args.channels,
             packages=packages,
             description="surl-client-login",
-            ttl=15552000, # 180 days
+            ttl=15552000,  # 180 days
             email=args.email,
             password=password,
-            otp=otp
+            otp=otp,
         )
     except CliError:
         raise
     except Exception as e:
-        raise CliError(
-            "Authorization failed! Double-check password and 2FA. (%s)" % e
-        )
+        raise CliError("Authorization failed! Double-check password and 2FA. (%s)" % e)
 
     credentials = json.loads(base64.b64decode(credentials))
-    if credentials['t'] == 'macaroon':
-        root = credentials['v']
+    if credentials["t"] == "macaroon":
+        root = credentials["v"]
         discharge = None
-    elif credentials['t'] == 'u1-macaroon':
-        root = credentials['v']['r']
-        discharge = credentials['v']['d']
+    elif credentials["t"] == "u1-macaroon":
+        root = credentials["v"]["r"]
+        discharge = credentials["v"]["d"]
 
     config = ClientConfig(
-       root=root, discharge=discharge, store_env=store_env, path=auth_path
+        root=root, discharge=discharge, store_env=store_env, path=auth_path
     )
 
     if auth_path is not None:
@@ -307,7 +292,9 @@ def get_authorization_header(root, discharge, store_env=None):
     if discharge is not None:
         discharge = Macaroon.deserialize(discharge)
         bound = root.prepare_for_request(discharge)
-        authorization = f"macaroon root={root.serialize()}, discharge={bound.serialize()}"
+        authorization = (
+            f"macaroon root={root.serialize()}, discharge={bound.serialize()}"
+        )
         return {"Authorization": authorization}
     else:
         authorization = f"macaroon {root.serialize()}"
@@ -317,25 +304,25 @@ def get_authorization_header(root, discharge, store_env=None):
 def get_client(web_login, store):
     if web_login:
         return StoreClient(
-                base_url=CONSTANTS[store]["sca_base_url"],
-                storage_base_url="https://storage.staging.snapcraftcontent.com",
-                endpoints=endpoints.SNAP_STORE,
-                user_agent=DEFAULT_HEADERS["User-Agent"],
-                application_name="surl",
-                environment_auth="CREDENTIALS",
-                ephemeral=True
-            )
+            base_url=CONSTANTS[store]["sca_base_url"],
+            storage_base_url="https://storage.staging.snapcraftcontent.com",
+            endpoints=endpoints.SNAP_STORE,
+            user_agent=DEFAULT_HEADERS["User-Agent"],
+            application_name="surl",
+            environment_auth="CREDENTIALS",
+            ephemeral=True,
+        )
     else:
         return UbuntuOneStoreClient(
-                base_url=CONSTANTS[store]["sca_base_url"],
-                storage_base_url="https://storage.staging.snapcraftcontent.com",
-                auth_url=CONSTANTS[store]["sso_base_url"],
-                endpoints=endpoints.U1_SNAP_STORE,
-                user_agent=DEFAULT_HEADERS["User-Agent"],
-                application_name="surl",
-                environment_auth="CREDENTIALS",
-                ephemeral=True,
-            )
+            base_url=CONSTANTS[store]["sca_base_url"],
+            storage_base_url="https://storage.staging.snapcraftcontent.com",
+            auth_url=CONSTANTS[store]["sso_base_url"],
+            endpoints=endpoints.U1_SNAP_STORE,
+            user_agent=DEFAULT_HEADERS["User-Agent"],
+            application_name="surl",
+            environment_auth="CREDENTIALS",
+            ephemeral=True,
+        )
 
 
 def store_request(config, **kwargs):
@@ -366,9 +353,7 @@ def main():
     )
 
     # Request options.
-    parser.add_argument(
-        "-H", "--header", action="append", default=[], dest="headers"
-    )
+    parser.add_argument("-H", "--header", action="append", default=[], dest="headers")
     parser.add_argument(
         "-X",
         "--method",
@@ -411,10 +396,8 @@ def main():
         else:
             data = None
             method = args.method
-    
-    auth_header = get_authorization_header(
-        config.root, config.discharge
-    )
+
+    auth_header = get_authorization_header(config.root, config.discharge)
     headers.update(auth_header)
     for h in args.headers:
         try:
