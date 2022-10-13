@@ -253,11 +253,12 @@ def get_config_from_cli(parser, auth_dir):
     store_env = args.store
 
     credentials = None
-    password = None
-    otp = None
     if not args.web_login and args.email is None:
         raise CliError('Needs "-e <email>" or $STORE_EMAIL.')
     try:
+        password = None
+        otp = None
+
         store_client = get_client(args.web_login, args.store)
         if not args.web_login:
             password = getpass(f"Password for {args.email}: ")  
