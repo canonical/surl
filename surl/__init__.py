@@ -251,66 +251,29 @@ def get_config_from_cli(parser, auth_dir):
 
     # NOTE: surl will eventually figure this out based on the URL
     store_env = args.store
+
+    credentials = None
+    password = None
+    otp = None
     if not args.web_login and args.email is None:
         raise CliError('Needs "-e <email>" or $STORE_EMAIL.')
     try:
-        if args.web_login:
-            store_client = StoreClient(
-                base_url=CONSTANTS[args.store]["sca_base_url"],
-                storage_base_url="https://storage.staging.snapcraftcontent.com",
-                endpoints=endpoints.SNAP_STORE,
-                user_agent=DEFAULT_HEADERS["User-Agent"],
-                application_name="surl",
-                environment_auth="CREDENTIALS",
-                ephemeral=True
-            )
-            credentials = store_client.login(
-                permissions=permissions,
-                channels=args.channels,
-                packages=packages,
-                description="surl-client-login",
-                ttl=15552000, # 180 days
-            )
-        else:
-            store_client = UbuntuOneStoreClient(
-                base_url=CONSTANTS[args.store]["sca_base_url"],
-                storage_base_url="https://storage.staging.snapcraftcontent.com",
-                auth_url=CONSTANTS[args.store]["sso_base_url"],
-                endpoints=endpoints.U1_SNAP_STORE,
-                user_agent=DEFAULT_HEADERS["User-Agent"],
-                application_name="surl",
-                environment_auth="CREDENTIALS",
-                ephemeral=True,
-            )
-            password = getpass(f"Password for {args.email}: ")
-            credentials = None    
-            try:
-                credentials = store_client.login(
-                    permissions=permissions,
-                    channels=args.channels,
-                    packages=packages,
-                    description="surl-client-login",
-                    ttl=15552000, # 180 days
-                    email=args.email,
-                    password=password,
-                )
-            except errors.StoreServerError as server_error:
-                if "twofactor-required" in server_error.error_list:
+        store_client = get_client(args.web_login, args.store)
+        if not args.web_login:
+            password = getpass(f"Password for {args.email}: ")  
+            if args.store == "production":
                     otp = input(f"Second-factor auth for {args.store}: ")
-                    credentials = store_client.login(
-                        permissions=permissions,
-                        channels=args.channels,
-                        packages=packages,
-                        description="surl-client-login",
-                        ttl=15552000, # 180 days
-                        email=args.email,
-                        password=password,
-                        otp=otp
-                    )
-                else:
-                    raise CliError(
-                        "Authorization failed! Double-check password and 2FA. (%s)" % server_error
-                    )
+
+        credentials = store_client.login(
+            permissions=permissions,
+            channels=args.channels,
+            packages=packages,
+            description="surl-client-login",
+            ttl=15552000, # 180 days
+            email=args.email,
+            password=password,
+            otp=otp
+        )
     except CliError:
         raise
     except Exception as e:
@@ -335,6 +298,7 @@ def get_config_from_cli(parser, auth_dir):
 
     return config, remainder
 
+
 # Note that store_env only exists to make surl_metrics (and possibly others) happy
 def get_authorization_header(root, discharge, store_env=None):
     """Return the required authorization header, possibly binding the root and discharge"""
@@ -348,26 +312,33 @@ def get_authorization_header(root, discharge, store_env=None):
         authorization = f"macaroon {root.serialize()}"
         return {"Authorization": authorization}
 
+
+def get_client(web_login, store):
+    if web_login:
+        return StoreClient(
+                base_url=CONSTANTS[store]["sca_base_url"],
+                storage_base_url="https://storage.staging.snapcraftcontent.com",
+                endpoints=endpoints.SNAP_STORE,
+                user_agent=DEFAULT_HEADERS["User-Agent"],
+                application_name="surl",
+                environment_auth="CREDENTIALS",
+                ephemeral=True
+            )
+    else:
+        return UbuntuOneStoreClient(
+                base_url=CONSTANTS[store]["sca_base_url"],
+                storage_base_url="https://storage.staging.snapcraftcontent.com",
+                auth_url=CONSTANTS[store]["sso_base_url"],
+                endpoints=endpoints.U1_SNAP_STORE,
+                user_agent=DEFAULT_HEADERS["User-Agent"],
+                application_name="surl",
+                environment_auth="CREDENTIALS",
+                ephemeral=True,
+            )
+
+
 def store_request(config, **kwargs):
     r = requests.request(**kwargs)
-
-    # # Refresh discharge if necessary.
-    # # (only for U1 SSO macaroons for now, in practice)
-    # if r.headers.get("WWW-Authenticate") == "Macaroon needs_refresh=1":
-    #     discharge = get_refreshed_discharge(config.discharge, config.store_env)
-    #     config = ClientConfig(
-    #         root=config.root,
-    #         discharge=discharge,
-    #         store_env=config.store_env,
-    #         path=config.path,
-    #     )
-    #     save_config(config)
-    #     headers = kwargs.get("headers", {})
-    #     auth_header = get_authorization_header(
-    #         config.root, config.discharge, store_env=config.store_env
-    #     )
-    #     headers.update(auth_header)
-    #     r = requests.request(**kwargs)
 
     return r
 
