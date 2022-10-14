@@ -302,26 +302,24 @@ def get_authorization_header(root, discharge, store_env=None):
 
 
 def get_client(web_login, store):
+    common_args = dict(
+        base_url=CONSTANTS[store]["sca_base_url"],
+        storage_base_url="https://storage.staging.snapcraftcontent.com",
+        user_agent=DEFAULT_HEADERS["User-Agent"],
+        application_name="surl",
+        environment_auth="CREDENTIALS",
+        ephemeral=True,
+    )
     if web_login:
         return StoreClient(
-            base_url=CONSTANTS[store]["sca_base_url"],
-            storage_base_url="https://storage.staging.snapcraftcontent.com",
             endpoints=endpoints.SNAP_STORE,
-            user_agent=DEFAULT_HEADERS["User-Agent"],
-            application_name="surl",
-            environment_auth="CREDENTIALS",
-            ephemeral=True,
+            **common_args,
         )
     else:
         return UbuntuOneStoreClient(
-            base_url=CONSTANTS[store]["sca_base_url"],
-            storage_base_url="https://storage.staging.snapcraftcontent.com",
-            auth_url=CONSTANTS[store]["sso_base_url"],
             endpoints=endpoints.U1_SNAP_STORE,
-            user_agent=DEFAULT_HEADERS["User-Agent"],
-            application_name="surl",
-            environment_auth="CREDENTIALS",
-            ephemeral=True,
+            auth_url=CONSTANTS[store]["sso_base_url"],
+            **common_args,
         )
 
 
