@@ -1,3 +1,4 @@
+craft-store
 iso8601
 macaroonbakery
 pymacaroons
