@@ -158,6 +158,14 @@ def list_configs(path):
         yield ident, config.store_env
 
 
+def get_package_from_name(name):
+    try:
+        package_type, package_name = name.split(":")
+        return endpoints.Package(package_name, package_type)
+    except ValueError:
+        return endpoints.Package(name, "snap")
+
+
 def get_config_from_cli(parser, auth_dir):
     # Auxiliary options.
     parser.add_argument(
@@ -213,13 +221,13 @@ def get_config_from_cli(parser, auth_dir):
         choices=["stable", "candidate", "beta", "edge"],
     )
     parser.add_argument(
-        "--snap",
+        "--package",
         action="append",
-        dest="snaps",
+        dest="packages",
         help=(
-            "Indicate the name of the snap on which the restricted auth "
+            "Indicate the name of the package on which the restricted auth "
             "can work. Can be used several times to indicate multiple "
-            "snaps."
+            "packages."
         ),
     )
 
@@ -263,14 +271,12 @@ def get_config_from_cli(parser, auth_dir):
         store_type = args.type
 
     if store_type == "snapcraft":
-        package_type = "snap"
         default_permission = "package_access"
     else:
-        package_type = "charm"
         default_permission = "package-view"
 
     packages = (
-        [endpoints.Package(name, package_type) for name in args.snaps] if args.snaps else []
+        [get_package_from_name(name) for name in args.packages] if args.packages else []
     )
 
     permissions = args.permissions or [default_permission]
@@ -336,9 +342,9 @@ def get_environment_from_url(url):
     
     # The assumption that localhost is SCA can be overriden by a command-line
     # argument.
-    if "localhost" in url or "127.0.0.1" in url:
+    if ":8000" in url:
         return "local", "snapcraft"
-    elif "publishergw" in url:
+    elif ":8010" in url:
         return "local", "charmhub"
     elif "staging.snapcraft" in url:
         return "staging", "snapcraft"
