@@ -47,7 +47,9 @@ CONSTANTS = {
             "SURL_SSO_BASE_URL", "https://login.staging.ubuntu.com"
         ),
         "sca_base_url": os.environ.get("SURL_SCA_BASE_URL", "http://0.0.0.0:8000"),
-        "pubgw_base_url": os.environ.get("SURL_PUBGW_BASE_URL", "http://publishergw-focal.lxd:8010"),
+        "pubgw_base_url": os.environ.get(
+            "SURL_PUBGW_BASE_URL", "http://publishergw-focal.lxd:8010"
+        ),
         "api_base_url": os.environ.get("SURL_API_BASE_URL", "http://0.0.0.0:8000"),
     },
     "staging": {
@@ -118,7 +120,9 @@ class CliDone(Exception):
     pass
 
 
-ClientConfig = namedtuple("ClientConfig", ["root", "discharge", "store_env", "store_type", "path"])
+ClientConfig = namedtuple(
+    "ClientConfig", ["root", "discharge", "store_env", "store_type", "path"]
+)
 
 
 def load_config(path):
@@ -133,7 +137,13 @@ def load_config(path):
             )
         except json.decoder.JSONDecodeError:
             raise ConfigError()
-    return ClientConfig(root=root, discharge=discharge, store_env=store_env, store_type=store_type, path=path)
+    return ClientConfig(
+        root=root,
+        discharge=discharge,
+        store_env=store_env,
+        store_type=store_type,
+        path=path,
+    )
 
 
 def save_config(config):
@@ -203,15 +213,15 @@ def get_config_from_cli(parser, auth_dir):
         "--store",
         choices=["staging", "production", "local"],
     )
-    parser.add_argument("-t", dest="type", choices=['charmhub', 'snapcraft'])
-    
+    parser.add_argument("-t", dest="type", choices=["charmhub", "snapcraft"])
+
     # Macaroon restricting options.
     parser.add_argument(
         "-p",
         "--permission",
         action="append",
         dest="permissions",
-        choices=SCA_PERMISSIONS+CHARMHUB_PERMISSIONS,
+        choices=SCA_PERMISSIONS + CHARMHUB_PERMISSIONS,
     )
     parser.add_argument(
         "-c",
@@ -285,7 +295,7 @@ def get_config_from_cli(parser, auth_dir):
     if not args.web_login and args.email is None:
         raise CliError('Needs "-e <email>" or $STORE_EMAIL.')
     if not args.web_login and store_type == "charmhub":
-        raise CliError('Charmhub only supports web-login.')
+        raise CliError("Charmhub only supports web-login.")
     try:
         password = None
         otp = None
@@ -327,7 +337,11 @@ def get_config_from_cli(parser, auth_dir):
         discharge = None
 
     config = ClientConfig(
-        root=root, discharge=discharge, store_env=store_env, store_type=store_type, path=auth_path
+        root=root,
+        discharge=discharge,
+        store_env=store_env,
+        store_type=store_type,
+        path=auth_path,
     )
 
     if auth_path is not None:
@@ -339,7 +353,7 @@ def get_config_from_cli(parser, auth_dir):
 def get_environment_from_url(url):
     if not url:
         return "staging", "snapcraft"
-    
+
     # The assumption that localhost is SCA can be overriden by a command-line
     # argument.
     if ":8000" in url:
@@ -374,7 +388,9 @@ def get_authorization_header(root, discharge, store_env=None):
 
 def get_client(web_login, store_env, store_type):
     common_args = dict(
-        base_url=CONSTANTS[store_env]["sca_base_url"] if store_type == "snapcraft" else CONSTANTS[store_env]["pubgw_base_url"],
+        base_url=CONSTANTS[store_env]["sca_base_url"]
+        if store_type == "snapcraft"
+        else CONSTANTS[store_env]["pubgw_base_url"],
         storage_base_url="https://storage.staging.snapcraftcontent.com",
         user_agent=DEFAULT_HEADERS["User-Agent"],
         application_name="surl",
@@ -383,7 +399,9 @@ def get_client(web_login, store_env, store_type):
     )
     if web_login:
         return StoreClient(
-            endpoints=endpoints.SNAP_STORE if store_type == "snapcraft" else endpoints.CHARMHUB,
+            endpoints=endpoints.SNAP_STORE
+            if store_type == "snapcraft"
+            else endpoints.CHARMHUB,
             **common_args,
         )
     else:
