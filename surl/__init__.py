@@ -47,6 +47,7 @@ CONSTANTS = {
             "SURL_SSO_BASE_URL", "https://login.staging.ubuntu.com"
         ),
         "sca_base_url": os.environ.get("SURL_SCA_BASE_URL", "http://0.0.0.0:8000"),
+        "pubgw_base_url": os.environ.get("SURL_PUBGW_BASE_URL", "http://publishergw-focal.lxd:8010"),
         "api_base_url": os.environ.get("SURL_API_BASE_URL", "http://0.0.0.0:8000"),
     },
     "staging": {
@@ -54,6 +55,9 @@ CONSTANTS = {
         "sso_base_url": "https://login.staging.ubuntu.com",
         "sca_base_url": os.environ.get(
             "SURL_SCA_ROOT_URL", "https://dashboard.staging.snapcraft.io"
+        ),
+        "pubgw_base_url": os.environ.get(
+            "SURL_PUBGW_ROOT_URL", "https://api.staging.charmhub.io"
         ),
         "api_base_url": os.environ.get(
             "SURL_API_ROOT_URL", "https://api.staging.snapcraft.io"
@@ -63,6 +67,7 @@ CONSTANTS = {
         "sso_location": "login.ubuntu.com",
         "sso_base_url": "https://login.ubuntu.com",
         "sca_base_url": "https://dashboard.snapcraft.io",
+        "pubgw_base_url": "https://api.charmhub.io",
         "api_base_url": "https://api.snapcraft.io",
     },
 }
@@ -84,6 +89,22 @@ SCA_PERMISSIONS = [
     "store_review",
 ]
 
+CHARMHUB_PERMISSIONS = [
+    "account-register-package",
+    "account-view-packages",
+    "package-manage",
+    "package-manage-acl",
+    "package-manage-metadata",
+    "package-manage-releases",
+    "package-manage-revisions",
+    "package-view",
+    "package-view-acl",
+    "package-view-metadata",
+    "package-view-metrics",
+    "package-view-releases",
+    "package-view-revisions",
+]
+
 
 class ConfigError(Exception):
     pass
@@ -97,21 +118,22 @@ class CliDone(Exception):
     pass
 
 
-ClientConfig = namedtuple("ClientConfig", ["root", "discharge", "store_env", "path"])
+ClientConfig = namedtuple("ClientConfig", ["root", "discharge", "store_env", "store_type", "path"])
 
 
 def load_config(path):
     with open(path) as fd:
         try:
             a = json.load(fd)
-            root, discharge, store_env = (
+            root, discharge, store_env, store_type = (
                 a["root"],
                 a["discharge"],
                 a["store"],
+                a["type"],
             )
         except json.decoder.JSONDecodeError:
             raise ConfigError()
-    return ClientConfig(root=root, discharge=discharge, store_env=store_env, path=path)
+    return ClientConfig(root=root, discharge=discharge, store_env=store_env, store_type=store_type, path=path)
 
 
 def save_config(config):
@@ -119,6 +141,7 @@ def save_config(config):
         "root": config.root,
         "discharge": config.discharge,
         "store": config.store_env,
+        "type": config.store_type,
     }
     with open(config.path, "w") as fd:
         json.dump(payload, fd, indent=2)
@@ -166,21 +189,21 @@ def get_config_from_cli(parser, auth_dir):
     exclusive_group.add_argument("-e", "--email", default=os.environ.get("STORE_EMAIL"))
     exclusive_group.add_argument("--web-login", action="store_true")
 
-    # NOTE: surl will be smart enough to figure this out
+    # Overrides the choice determined by the URL
     parser.add_argument(
         "-s",
         "--store",
-        default=os.environ.get("STORE_ENV", "staging"),
         choices=["staging", "production", "local"],
     )
-
+    parser.add_argument("-t", dest="type", choices=['charmhub', 'snapcraft'])
+    
     # Macaroon restricting options.
     parser.add_argument(
         "-p",
         "--permission",
         action="append",
         dest="permissions",
-        choices=SCA_PERMISSIONS,
+        choices=SCA_PERMISSIONS+CHARMHUB_PERMISSIONS,
     )
     parser.add_argument(
         "-c",
@@ -199,6 +222,8 @@ def get_config_from_cli(parser, auth_dir):
             "snaps."
         ),
     )
+
+    parser.add_argument("url", nargs="?")
 
     args, remainder = parser.parse_known_args()
 
@@ -227,30 +252,43 @@ def get_config_from_cli(parser, auth_dir):
                 "please delete it and login again:\n  $ rm {}".format(auth_path)
             )
 
-        return config, remainder
+        return args.url, config, remainder
 
-    # TODO: change this to use either snap or charm based on URL
+    store_env, store_type = get_environment_from_url(args.url)
+
+    if args.store:
+        store_env = args.store
+
+    if args.type:
+        store_type = args.type
+
+    if store_type == "snapcraft":
+        package_type = "snap"
+        default_permission = "package_access"
+    else:
+        package_type = "charm"
+        default_permission = "package-view"
+
     packages = (
-        [endpoints.Package(name, "snap") for name in args.snaps] if args.snaps else []
+        [endpoints.Package(name, package_type) for name in args.snaps] if args.snaps else []
     )
-    # NOTE: this will go away when we transition to click
-    permissions = args.permissions or ["package_access"]
 
-    # NOTE: surl will eventually figure this out based on the URL
-    store_env = args.store
+    permissions = args.permissions or [default_permission]
 
     credentials = None
     if not args.web_login and args.email is None:
         raise CliError('Needs "-e <email>" or $STORE_EMAIL.')
+    if not args.web_login and store_type == "charmhub":
+        raise CliError('Charmhub only supports web-login.')
     try:
         password = None
         otp = None
 
-        store_client = get_client(args.web_login, args.store)
+        store_client = get_client(args.web_login, store_env, store_type)
         if not args.web_login:
             password = getpass(f"Password for {args.email}: ")
-            if args.store == "production":
-                otp = input(f"Second-factor auth for {args.store}: ")
+            if store_env == "production":
+                otp = input(f"Second-factor auth for {store_env}: ")
 
         credentials = store_client.login(
             permissions=permissions,
@@ -267,22 +305,49 @@ def get_config_from_cli(parser, auth_dir):
     except Exception as e:
         raise CliError("Authorization failed! Double-check password and 2FA. (%s)" % e)
 
-    credentials = json.loads(base64.b64decode(credentials))
-    if credentials["t"] == "macaroon":
-        root = credentials["v"]
+    decoded_credentials = base64.b64decode(credentials)
+    try:
+        credentials = json.loads(decoded_credentials)
+
+        if credentials["t"] == "macaroon":
+            root = credentials["v"]
+            discharge = None
+        elif credentials["t"] == "u1-macaroon":
+            root = credentials["v"]["r"]
+            discharge = credentials["v"]["d"]
+    except json.decoder.JSONDecodeError:
+        # Charmhub just returns the raw credentials, so attempting to parse it fails
+        root = decoded_credentials.decode()
         discharge = None
-    elif credentials["t"] == "u1-macaroon":
-        root = credentials["v"]["r"]
-        discharge = credentials["v"]["d"]
 
     config = ClientConfig(
-        root=root, discharge=discharge, store_env=store_env, path=auth_path
+        root=root, discharge=discharge, store_env=store_env, store_type=store_type, path=auth_path
     )
 
     if auth_path is not None:
         save_config(config)
 
-    return config, remainder
+    return args.url, config, remainder
+
+
+def get_environment_from_url(url):
+    if not url:
+        return "staging", "snapcraft"
+    
+    # The assumption that localhost is SCA can be overriden by a command-line
+    # argument.
+    if "localhost" in url or "127.0.0.1" in url:
+        return "local", "snapcraft"
+    elif "publishergw" in url:
+        return "local", "charmhub"
+    elif "staging.snapcraft" in url:
+        return "staging", "snapcraft"
+    elif "staging.charmhub" in url:
+        return "staging", "charmhub"
+    elif "dashboard.snapcraft" in url:
+        return "production", "snapcraft"
+    elif "api.charmhub" in url:
+        return "production", "charmhub"
 
 
 # Note that store_env only exists to make surl_metrics (and possibly others) happy
@@ -301,9 +366,9 @@ def get_authorization_header(root, discharge, store_env=None):
         return {"Authorization": authorization}
 
 
-def get_client(web_login, store):
+def get_client(web_login, store_env, store_type):
     common_args = dict(
-        base_url=CONSTANTS[store]["sca_base_url"],
+        base_url=CONSTANTS[store_env]["sca_base_url"] if store_type == "snapcraft" else CONSTANTS[store_env]["pubgw_base_url"],
         storage_base_url="https://storage.staging.snapcraftcontent.com",
         user_agent=DEFAULT_HEADERS["User-Agent"],
         application_name="surl",
@@ -312,13 +377,13 @@ def get_client(web_login, store):
     )
     if web_login:
         return StoreClient(
-            endpoints=endpoints.SNAP_STORE,
+            endpoints=endpoints.SNAP_STORE if store_type == "snapcraft" else endpoints.CHARMHUB,
             **common_args,
         )
     else:
         return UbuntuOneStoreClient(
             endpoints=endpoints.U1_SNAP_STORE,
-            auth_url=CONSTANTS[store]["sso_base_url"],
+            auth_url=CONSTANTS[store_env]["sso_base_url"],
             **common_args,
         )
 
@@ -335,7 +400,7 @@ def main():
     parser = argparse.ArgumentParser(description="S(tore)URL ...")
 
     try:
-        config, remainder = get_config_from_cli(parser, auth_dir)
+        url, config, remainder = get_config_from_cli(parser, auth_dir)
     except CliError as e:
         print(e)
         return 1
@@ -360,8 +425,6 @@ def main():
     )
     parser.add_argument("-d", "--data")
 
-    parser.add_argument("url", nargs="?")
-
     args = parser.parse_args(remainder)
 
     if args.debug:
@@ -374,14 +437,18 @@ def main():
         handler.setFormatter(logging.Formatter("\033[1m%(message)s\033[0m"))
 
     headers = DEFAULT_HEADERS.copy()
-    if args.url is None:
-        url = "{}/api/v2/tokens/whoami".format(
-            CONSTANTS[config.store_env]["sca_base_url"]
-        )
+    if url is None:
+        if config.store_type == "snapcraft":
+            url = "{}/api/v2/tokens/whoami".format(
+                CONSTANTS[config.store_env]["sca_base_url"]
+            )
+        else:
+            url = "{}/v1/tokens/whoami".format(
+                CONSTANTS[config.store_env]["pubgw_base_url"]
+            )
         method = "GET"
         data = None
     else:
-        url = args.url
         if args.data is not None:
             if args.data.startswith("@"):
                 with open(os.path.expanduser(args.data[1:])) as fd:
