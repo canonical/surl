@@ -1,10 +1,9 @@
 import argparse
 import base64
-import datetime
 import getpass
 import json
 import os
-import socket
+import subprocess
 import sys
 
 from collections import namedtuple
@@ -12,7 +11,7 @@ from getpass import getpass
 
 import requests
 
-from craft_store import endpoints, errors, StoreClient, UbuntuOneStoreClient
+from craft_store import endpoints, StoreClient, UbuntuOneStoreClient
 from pymacaroons import Macaroon
 
 name = "surl"
@@ -325,12 +324,15 @@ def get_config_from_cli(parser, auth_dir):
     try:
         credentials = json.loads(decoded_credentials)
 
-        if credentials["t"] == "macaroon":
+        if credentials.get("t") == "macaroon":
             root = credentials["v"]
             discharge = None
-        elif credentials["t"] == "u1-macaroon":
+        elif credentials.get("t") == "u1-macaroon":
             root = credentials["v"]["r"]
             discharge = credentials["v"]["d"]
+        else:
+            root = credentials["r"]
+            discharge = credentials["d"]
     except json.decoder.JSONDecodeError:
         # Charmhub just returns the raw credentials, so attempting to parse it fails
         root = decoded_credentials.decode()
@@ -364,7 +366,7 @@ def get_environment_from_url(url):
         return "staging", "snapcraft"
     elif "staging.charmhub" in url:
         return "staging", "charmhub"
-    elif "dashboard.snapcraft" in url:
+    elif "dashboard.snapcraft" in url or "api.snapcraft" in url:
         return "production", "snapcraft"
     elif "api.charmhub" in url:
         return "production", "charmhub"
@@ -431,35 +433,6 @@ def main():
     except CliDone:
         return 0
 
-    # Extra CLI options
-    parser.add_argument(
-        "-v",
-        "--debug",
-        action="store_true",
-        help="Prints request and response headers",
-    )
-
-    # Request options.
-    parser.add_argument("-H", "--header", action="append", default=[], dest="headers")
-    parser.add_argument(
-        "-X",
-        "--method",
-        default="GET",
-        choices=["GET", "PATCH", "POST", "PUT"],
-    )
-    parser.add_argument("-d", "--data")
-
-    args = parser.parse_args(remainder)
-
-    if args.debug:
-        # # The http.client logger pollutes stdout.
-        # from http.client import HTTPConnection
-        # HTTPConnection.debuglevel = 1
-        import logging
-
-        handler = requests.packages.urllib3.add_stderr_logger()
-        handler.setFormatter(logging.Formatter("\033[1m%(message)s\033[0m"))
-
     headers = DEFAULT_HEADERS.copy()
     if url is None:
         if config.store_type == "snapcraft":
@@ -470,72 +443,22 @@ def main():
             url = "{}/v1/tokens/whoami".format(
                 CONSTANTS[config.store_env]["pubgw_base_url"]
             )
-        method = "GET"
-        data = None
-    else:
-        if args.data is not None:
-            if args.data.startswith("@"):
-                with open(os.path.expanduser(args.data[1:])) as fd:
-                    data = json.load(fd)
-            else:
-                data = json.loads(args.data)
-            method = args.method
-            if args.method == "GET":
-                method = "POST"
-        else:
-            data = None
-            method = args.method
 
     auth_header = get_authorization_header(config.root, config.discharge)
     headers.update(auth_header)
-    for h in args.headers:
-        try:
-            k, v = [t.strip() for t in h.split(":")]
-        except ValueError:
-            print('Invalid header: "{}"'.format(h))
-            return 1
-        headers[k] = v
 
-    if args.debug:
-        print(
-            "\033[1m******** request headers ********\033[0m",
-            file=sys.stderr,
-            flush=True,
-        )
-        for k, v in headers.items():
-            print("{}: {}".format(k, v), file=sys.stderr, flush=True)
-        print(
-            "\033[1m**********************************\033[0m",
-            file=sys.stderr,
-            flush=True,
-        )
+    # -s hides progress bar and errors, -S brings the errors back, -L follows
+    # redirects, and --output - prints binary output to terminal
+    arguments = ["curl", "-sSL", "--output", "-"]
 
-    response = store_request(
-        config, url=url, method=method, json=data, headers=headers, stream=True
-    )
+    for header, value in headers.items():
+        arguments.append("-H")
+        arguments.append(f"{header}: {value}")
 
-    if args.debug:
-        print(
-            "\033[1m******** response headers ********\033[0m",
-            file=sys.stderr,
-            flush=True,
-        )
-        print(
-            "HTTP/1.1 {} {}".format(response.status_code, response.reason),
-            file=sys.stderr,
-            flush=True,
-        )
-        for k, v in response.headers.items():
-            print("{}: {}".format(k, v), file=sys.stderr, flush=True)
-        print(
-            "\033[1m**********************************\033[0m",
-            file=sys.stderr,
-            flush=True,
-        )
+    arguments.extend(remainder)
+    arguments.append(url)
 
-    for chunk in response.iter_content(chunk_size=1024 * 8):
-        if chunk:
-            sys.stdout.buffer.write(chunk)
+    result = subprocess.run(arguments, stderr=subprocess.STDOUT)
 
     # Flush STDOUT carefully, because PIPE might be broken.
     def _noop(*args, **kwargs):
@@ -548,4 +471,4 @@ def main():
         sys.stdout.flush = _noop
         return 1
 
-    return 0
+    return result.returncode
