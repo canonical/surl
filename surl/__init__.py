@@ -363,7 +363,7 @@ def get_environment_from_url(url):
         return "staging", "snapcraft"
     elif "staging.charmhub" in url:
         return "staging", "charmhub"
-    elif "dashboard.snapcraft" in url:
+    elif "dashboard.snapcraft" in url or "api.snapcraft" in url:
         return "production", "snapcraft"
     elif "api.charmhub" in url:
         return "production", "charmhub"
