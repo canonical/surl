@@ -324,12 +324,15 @@ def get_config_from_cli(parser, auth_dir):
     try:
         credentials = json.loads(decoded_credentials)
 
-        if credentials["t"] == "macaroon":
+        if credentials.get("t") == "macaroon":
             root = credentials["v"]
             discharge = None
-        elif credentials["t"] == "u1-macaroon":
+        elif credentials.get("t") == "u1-macaroon":
             root = credentials["v"]["r"]
             discharge = credentials["v"]["d"]
+        else:
+            root = credentials["r"]
+            discharge = credentials["d"]
     except json.decoder.JSONDecodeError:
         # Charmhub just returns the raw credentials, so attempting to parse it fails
         root = decoded_credentials.decode()
