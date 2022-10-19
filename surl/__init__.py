@@ -1,10 +1,8 @@
 import argparse
 import base64
-import datetime
 import getpass
 import json
 import os
-import socket
 import sys
 
 from collections import namedtuple
@@ -12,7 +10,7 @@ from getpass import getpass
 
 import requests
 
-from craft_store import endpoints, errors, StoreClient, UbuntuOneStoreClient
+from craft_store import endpoints, StoreClient, UbuntuOneStoreClient
 from pymacaroons import Macaroon
 
 name = "surl"
