@@ -444,8 +444,9 @@ def main():
     auth_header = get_authorization_header(config.root, config.discharge)
     headers.update(auth_header)
 
-    # -s hides progress bar and errors, -S brings the errors back
-    arguments = ["curl", "-sS"]
+    # -s hides progress bar and errors, -S brings the errors back, -L follows
+    # redirects, and --output - prints binary output to terminal
+    arguments = ["curl", "-sSL", "--output", "-"]
 
     for header, value in headers.items():
         arguments.append("-H")
