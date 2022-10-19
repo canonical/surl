@@ -454,7 +454,7 @@ def main():
     arguments.extend(remainder)
     arguments.append(url)
 
-    subprocess.run(arguments, stderr=subprocess.STDOUT)
+    result = subprocess.run(arguments, stderr=subprocess.STDOUT)
 
     # Flush STDOUT carefully, because PIPE might be broken.
     def _noop(*args, **kwargs):
@@ -467,4 +467,4 @@ def main():
         sys.stdout.flush = _noop
         return 1
 
-    return 0
+    return result.returncode
