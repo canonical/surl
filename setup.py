@@ -9,10 +9,10 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="surl",
-    version="0.8.0",
-    author="Celso Providelo",
-    author_email="celso.providelo@canonical.com",
-    url="https://github.com/cprov/surl",
+    version="1.0.0",
+    author="Snap Store Team",
+    author_email="daniel.manrique@canonical.com",
+    url="https://github.com/canonical/surl",
     license="GPL-3.0",
     description="Ubuntu Store API thin wrapper.",
     long_description=long_description,
