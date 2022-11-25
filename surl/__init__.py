@@ -375,7 +375,7 @@ def get_environment_from_url(url):
 def get_authorization_header(root, discharge, store_env=None):
     """Return the required authorization header.
 
-       This is done possibly binding the root and discharge"""
+    This is done possibly binding the root and discharge"""
     root = Macaroon.deserialize(root)
     if discharge is not None:
         discharge = Macaroon.deserialize(discharge)
