@@ -7,7 +7,6 @@ import subprocess
 import sys
 
 from collections import namedtuple
-from getpass import getpass
 
 import requests
 
@@ -374,7 +373,9 @@ def get_environment_from_url(url):
 
 # Note that store_env only exists to make surl_metrics (and possibly others) happy
 def get_authorization_header(root, discharge, store_env=None):
-    """Return the required authorization header, possibly binding the root and discharge"""
+    """Return the required authorization header.
+
+       This is done possibly binding the root and discharge"""
     root = Macaroon.deserialize(root)
     if discharge is not None:
         discharge = Macaroon.deserialize(discharge)
