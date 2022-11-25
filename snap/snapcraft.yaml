@@ -27,7 +27,10 @@ parts:
     requirements:
       - requirements.txt
     build-packages:
+      - rustc
+      - cargo
       - libffi-dev
+      - libssl-dev
       - libsodium23
       - libsodium-dev
     stage-packages:
