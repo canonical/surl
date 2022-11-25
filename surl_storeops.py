@@ -118,9 +118,7 @@ def fetch_snaps(config):
     for m in metrics:
         snap_map[m["snap_id"]].update(
             {
-                "installed_base": sum(
-                    [sum(ch["values"]) for ch in m["series"]]
-                ),
+                "installed_base": sum([sum(ch["values"]) for ch in m["series"]]),
             }
         )
 
@@ -151,9 +149,7 @@ def main():
         action="store_true",
         help="Prints request and response headers",
     )
-    parser.add_argument(
-        "action", nargs="?", default="snaps", choices=ACTIONS.keys()
-    )
+    parser.add_argument("action", nargs="?", default="snaps", choices=ACTIONS.keys())
     args = parser.parse_args(remainder)
 
     if args.debug:
