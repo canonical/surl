@@ -33,6 +33,7 @@ parts:
     stage-packages:
       - libsodium23
       - libsodium-dev
+      - curl 
     python-packages:
       - tabulate
       - iso8601
