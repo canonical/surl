@@ -41,9 +41,7 @@ def get_publisher_metric(snap_id, metric_name, config):
     headers.update(auth_header)
 
     # account for time spend mining the metrics daily (~4h).
-    yesterday = datetime.datetime.utcnow() - datetime.timedelta(
-        days=1, hours=4
-    )
+    yesterday = datetime.datetime.utcnow() - datetime.timedelta(days=1, hours=4)
 
     start = end = yesterday.date().isoformat()
     filters = [
@@ -72,9 +70,7 @@ def get_public_metric(snap_id, metric_name, config):
     headers["X-Ubuntu-Series"] = "16"
 
     # account for time spend mining the metrics daily (~4h).
-    yesterday = datetime.datetime.utcnow() - datetime.timedelta(
-        days=1, hours=4
-    )
+    yesterday = datetime.datetime.utcnow() - datetime.timedelta(days=1, hours=4)
 
     start = end = yesterday.date().isoformat()
     filters = [
@@ -104,9 +100,7 @@ METRICS = (
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Snap store metrics viewer ..."
-    )
+    parser = argparse.ArgumentParser(description="Snap store metrics viewer ...")
 
     auth_dir = os.path.abspath(os.environ.get("SNAP_USER_COMMON", "."))
     try:
@@ -147,9 +141,7 @@ def main():
 
     publisher_metrics = get_publisher_metric(snap_id, args.metric, config)
 
-    by_terms = {
-        m["name"]: m["values"][0] for m in publisher_metrics[0]["series"]
-    }
+    by_terms = {m["name"]: m["values"][0] for m in publisher_metrics[0]["series"]}
     sorted_metric = collections.OrderedDict(
         sorted(by_terms.items(), key=lambda t: t[1] or -1, reverse=True)
     )
