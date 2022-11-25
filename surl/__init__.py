@@ -1,21 +1,22 @@
 import argparse
 import base64
-import datetime
 import getpass
 import json
 import os
-import socket
+import subprocess
 import sys
 
 from collections import namedtuple
 
-import macaroonbakery._utils as utils
 import requests
 
+from craft_store import endpoints, StoreClient, UbuntuOneStoreClient
 from pymacaroons import Macaroon
-from macaroonbakery import bakery, httpbakery
 
 name = "surl"
+
+# NOTE: current expiration is 180 days
+
 
 __all__ = [
     "ClientConfig",
@@ -39,24 +40,24 @@ DEFAULT_HEADERS = {
 
 CONSTANTS = {
     "local": {
-        "sso_location": os.environ.get(
-            "SURL_SSO_LOCATION", "login.staging.ubuntu.com"
-        ),
+        "sso_location": os.environ.get("SURL_SSO_LOCATION", "login.staging.ubuntu.com"),
         "sso_base_url": os.environ.get(
             "SURL_SSO_BASE_URL", "https://login.staging.ubuntu.com"
         ),
-        "sca_base_url": os.environ.get(
-            "SURL_SCA_BASE_URL", "http://0.0.0.0:8000"
+        "sca_base_url": os.environ.get("SURL_SCA_BASE_URL", "http://0.0.0.0:8000"),
+        "pubgw_base_url": os.environ.get(
+            "SURL_PUBGW_BASE_URL", "http://publishergw-focal.lxd:8010"
         ),
-        "api_base_url": os.environ.get(
-            "SURL_API_BASE_URL", "http://0.0.0.0:8000"
-        ),
+        "api_base_url": os.environ.get("SURL_API_BASE_URL", "http://0.0.0.0:8000"),
     },
     "staging": {
         "sso_location": "login.staging.ubuntu.com",
         "sso_base_url": "https://login.staging.ubuntu.com",
         "sca_base_url": os.environ.get(
             "SURL_SCA_ROOT_URL", "https://dashboard.staging.snapcraft.io"
+        ),
+        "pubgw_base_url": os.environ.get(
+            "SURL_PUBGW_ROOT_URL", "https://api.staging.charmhub.io"
         ),
         "api_base_url": os.environ.get(
             "SURL_API_ROOT_URL", "https://api.staging.snapcraft.io"
@@ -66,9 +67,43 @@ CONSTANTS = {
         "sso_location": "login.ubuntu.com",
         "sso_base_url": "https://login.ubuntu.com",
         "sca_base_url": "https://dashboard.snapcraft.io",
+        "pubgw_base_url": "https://api.charmhub.io",
         "api_base_url": "https://api.snapcraft.io",
     },
 }
+
+SCA_PERMISSIONS = [
+    "edit_account",
+    "modify_account_key",
+    "package_access",
+    "package_manage",
+    "package_metrics",
+    "package_push",
+    "package_purchase",
+    "package_register",
+    "package_release",
+    "package_update",
+    "package_upload",
+    "package_upload_request",
+    "store_admin",
+    "store_review",
+]
+
+CHARMHUB_PERMISSIONS = [
+    "account-register-package",
+    "account-view-packages",
+    "package-manage",
+    "package-manage-acl",
+    "package-manage-metadata",
+    "package-manage-releases",
+    "package-manage-revisions",
+    "package-view",
+    "package-view-acl",
+    "package-view-metadata",
+    "package-view-metrics",
+    "package-view-releases",
+    "package-view-revisions",
+]
 
 
 class ConfigError(Exception):
@@ -84,7 +119,7 @@ class CliDone(Exception):
 
 
 ClientConfig = namedtuple(
-    "ClientConfig", ["root", "discharge", "store_env", "path"]
+    "ClientConfig", ["root", "discharge", "store_env", "store_type", "path"]
 )
 
 
@@ -92,15 +127,20 @@ def load_config(path):
     with open(path) as fd:
         try:
             a = json.load(fd)
-            root, discharge, store_env = (
+            root, discharge, store_env, store_type = (
                 a["root"],
                 a["discharge"],
                 a["store"],
+                a["type"],
             )
         except json.decoder.JSONDecodeError:
             raise ConfigError()
     return ClientConfig(
-        root=root, discharge=discharge, store_env=store_env, path=path
+        root=root,
+        discharge=discharge,
+        store_env=store_env,
+        store_type=store_type,
+        path=path,
     )
 
 
@@ -109,6 +149,7 @@ def save_config(config):
         "root": config.root,
         "discharge": config.discharge,
         "store": config.store_env,
+        "type": config.store_type,
     }
     with open(config.path, "w") as fd:
         json.dump(payload, fd, indent=2)
@@ -125,8 +166,15 @@ def list_configs(path):
         yield ident, config.store_env
 
 
-def get_config_from_cli(parser, auth_dir):
+def get_package_from_name(name):
+    try:
+        package_type, package_name = name.split(":")
+        return endpoints.Package(package_name, package_type)
+    except ValueError:
+        return endpoints.Package(name, "snap")
 
+
+def get_config_from_cli(parser, auth_dir):
     # Auxiliary options.
     parser.add_argument(
         "--version",
@@ -137,7 +185,7 @@ def get_config_from_cli(parser, auth_dir):
         "-l",
         "--list-auth",
         action="store_true",
-        help="List stored authorizations..",
+        help="List stored authorizations.",
     )
 
     # Credential options.
@@ -154,16 +202,16 @@ def get_config_from_cli(parser, auth_dir):
     )
     # mutually exclusive: email CLI U1 SSO auth vs candid web login auth
     exclusive_group = parser.add_mutually_exclusive_group()
-    exclusive_group.add_argument(
-        "-e", "--email", default=os.environ.get("STORE_EMAIL")
-    )
+    exclusive_group.add_argument("-e", "--email", default=os.environ.get("STORE_EMAIL"))
     exclusive_group.add_argument("--web-login", action="store_true")
+
+    # Overrides the choice determined by the URL
     parser.add_argument(
         "-s",
         "--store",
-        default=os.environ.get("STORE_ENV", "staging"),
         choices=["staging", "production", "local"],
     )
+    parser.add_argument("-t", dest="type", choices=["charmhub", "snapcraft"])
 
     # Macaroon restricting options.
     parser.add_argument(
@@ -171,22 +219,7 @@ def get_config_from_cli(parser, auth_dir):
         "--permission",
         action="append",
         dest="permissions",
-        choices=[
-            "edit_account",
-            "modify_account_key",
-            "package_access",
-            "package_manage",
-            "package_metrics",
-            "package_push",
-            "package_purchase",
-            "package_register",
-            "package_release",
-            "package_update",
-            "package_upload",
-            "package_upload_request",
-            "store_admin",
-            "store_review",
-        ],
+        choices=SCA_PERMISSIONS + CHARMHUB_PERMISSIONS,
     )
     parser.add_argument(
         "-c",
@@ -196,24 +229,17 @@ def get_config_from_cli(parser, auth_dir):
         choices=["stable", "candidate", "beta", "edge"],
     )
     parser.add_argument(
-        "--allowed-store",
+        "--package",
         action="append",
-        dest="allowed_stores",
+        dest="packages",
         help=(
-            "Indicate the store id where the restricted auth can work. Can "
-            "be used several times to indicate multiple stores."
-        ),
-    )
-    parser.add_argument(
-        "--snap",
-        action="append",
-        dest="snaps",
-        help=(
-            "Indicate the name of the snap on which the restricted auth "
+            "Indicate the name of the package on which the restricted auth "
             "can work. Can be used several times to indicate multiple "
-            "snaps."
+            "packages."
         ),
     )
+
+    parser.add_argument("url", nargs="?")
 
     args, remainder = parser.parse_known_args()
 
@@ -239,273 +265,158 @@ def get_config_from_cli(parser, auth_dir):
         except ConfigError:
             raise CliError(
                 "** Deprecated or Broken authentication file, "
-                "please delete it and login again:\n  $ rm {}".format(
-                    auth_path
-                )
+                "please delete it and login again:\n  $ rm {}".format(auth_path)
             )
 
-        return config, remainder
+        return args.url, config, remainder
 
-    store_env = args.store
+    store_env, store_type = get_environment_from_url(args.url)
+
+    if args.store:
+        store_env = args.store
+
+    if args.type:
+        store_type = args.type
+
+    if store_type == "snapcraft":
+        default_permission = "package_access"
+    else:
+        default_permission = "package-view"
+
+    packages = (
+        [get_package_from_name(name) for name in args.packages] if args.packages else []
+    )
+
+    permissions = args.permissions or [default_permission]
+
+    credentials = None
     if not args.web_login and args.email is None:
         raise CliError('Needs "-e <email>" or $STORE_EMAIL.')
-
+    if not args.web_login and store_type == "charmhub":
+        raise CliError("Charmhub only supports web-login.")
     try:
-        root, discharge = get_store_authorization(
-            args.email,
-            permissions=args.permissions,
+        password = None
+        otp = None
+
+        store_client = get_client(args.web_login, store_env, store_type)
+        if not args.web_login:
+            password = getpass(f"Password for {args.email}: ")
+            if store_env == "production":
+                otp = input(f"Second-factor auth for {store_env}: ")
+
+        credentials = store_client.login(
+            permissions=permissions,
             channels=args.channels,
-            allowed_stores=args.allowed_stores,
-            snaps=args.snaps,
-            web_login=args.web_login,
-            store_env=store_env,
+            packages=packages,
+            description="surl-client-login",
+            ttl=15552000,  # 180 days
+            email=args.email,
+            password=password,
+            otp=otp,
         )
     except CliError:
         raise
     except Exception as e:
-        raise CliError(
-            "Authorization failed! Double-check password and 2FA. (%s)" % e
-        )
+        raise CliError("Authorization failed! Double-check password and 2FA. (%s)" % e)
+
+    decoded_credentials = base64.b64decode(credentials)
+    try:
+        credentials = json.loads(decoded_credentials)
+
+        if credentials.get("t") == "macaroon":
+            root = credentials["v"]
+            discharge = None
+        elif credentials.get("t") == "u1-macaroon":
+            root = credentials["v"]["r"]
+            discharge = credentials["v"]["d"]
+        else:
+            root = credentials["r"]
+            discharge = credentials["d"]
+    except json.decoder.JSONDecodeError:
+        # Charmhub just returns the raw credentials, so attempting to parse it fails
+        root = decoded_credentials.decode()
+        discharge = None
 
     config = ClientConfig(
-        root=root, discharge=discharge, store_env=store_env, path=auth_path
+        root=root,
+        discharge=discharge,
+        store_env=store_env,
+        store_type=store_type,
+        path=auth_path,
     )
 
     if auth_path is not None:
         save_config(config)
 
-    return config, remainder
+    return args.url, config, remainder
 
 
-def _get_authorization_payload(permissions, channels, snaps, allowed_stores):
-    # Request a SCA root macaroon with hard expiration in 180 days.
-    sca_data = {
-        "permissions": permissions or ["package_access"],
-        "expires": (
-            datetime.date.today() + datetime.timedelta(days=180)
-        ).strftime("%Y-%m-%d 00:00:00"),
-    }
-    if channels:
-        sca_data["channels"] = channels
-    if allowed_stores:
-        sca_data["store_ids"] = allowed_stores
-    if snaps:
-        sca_data["packages"] = [{"name": snap} for snap in snaps]
+def get_environment_from_url(url):
+    if not url:
+        return "staging", "snapcraft"
 
-    return sca_data
-
-
-def _get_bakery_auth_header(root, discharge):
-    macaroons = "[{}]".format(
-        ",".join(map(utils.macaroon_to_json_string, [root, discharge]))
-    )
-    # serialize macaroons the bakery-way
-    all_macaroons = base64.urlsafe_b64encode(utils.to_bytes(macaroons)).decode(
-        "ascii"
-    )
-    return {"Macaroons": all_macaroons}
+    # The assumption that localhost is SCA can be overriden by a command-line
+    # argument.
+    if ":8000" in url:
+        return "local", "snapcraft"
+    elif ":8010" in url:
+        return "local", "charmhub"
+    elif "staging.snapcraft" in url:
+        return "staging", "snapcraft"
+    elif "staging.charmhub" in url:
+        return "staging", "charmhub"
+    elif "dashboard.snapcraft" in url or "api.snapcraft" in url:
+        return "production", "snapcraft"
+    elif "api.charmhub" in url:
+        return "production", "charmhub"
 
 
-def _get_store_authorization_using_candid(
-    permissions=None,
-    channels=None,
-    allowed_stores=None,
-    snaps=None,
-    store_env=None,
-):
-    """Return the serialised root and discharge macaroon.
-
-    Get a permissions macaroon from SCA and discharge it via Candid.
-    """
-    headers = DEFAULT_HEADERS.copy()
-    sca_data = _get_authorization_payload(
-        permissions, channels, snaps, allowed_stores
-    )
-    # set additional macaroon description
-    sca_data["description"] = "surl @ {}".format(socket.gethostname())
-
-    response = requests.request(
-        url="{}/api/v2/tokens".format(CONSTANTS[store_env]["sca_base_url"]),
-        method="POST",
-        json=sca_data,
-        headers=headers,
-    )
-    if response.status_code != 200:
-        error = response.json()["title"]
-        raise CliError("Error {}: {}".format(response.status_code, error))
-    serialized_root = json.loads(response.json()["macaroon"])
-
-    # get discharge(s)
-    client = httpbakery.Client()
-    m = bakery.Macaroon.from_dict(serialized_root)
-    root, discharge = bakery.discharge_all(m, client.acquire_discharge)
-
-    # with the Candid-discharged pair, get the exchanged SnapStore macaroon
-    auth_header = _get_bakery_auth_header(root, discharge)
-    exchange_url = "{}/api/v2/tokens/exchange".format(
-        CONSTANTS[store_env]["sca_base_url"]
-    )
-    r = client.request("POST", exchange_url, json={}, headers=auth_header)
-    # get the (serialized) exchanged macaroon from the response
-    macaroon = r.json()["macaroon"]
-
-    return macaroon, None
-
-
-def _get_store_authorization(
-    email,
-    permissions=None,
-    channels=None,
-    allowed_stores=None,
-    snaps=None,
-    store_env=None,
-):
-    """Return the serialised root and discharge macaroon.
-
-    Get a permissions macaroon from SCA and discharge it in SSO.
-    """
-    headers = DEFAULT_HEADERS.copy()
-    sca_data = _get_authorization_payload(
-        permissions, channels, snaps, allowed_stores
-    )
-
-    response = requests.request(
-        url="{}/dev/api/acl/".format(CONSTANTS[store_env]["sca_base_url"]),
-        method="POST",
-        json=sca_data,
-        headers=headers,
-    )
-    if response.status_code != 200:
-        error = response.json()["title"]
-        raise CliError("Error {}: {}".format(response.status_code, error))
-    root = response.json()["macaroon"]
-
-    (caveat,) = [
-        c
-        for c in Macaroon.deserialize(root).third_party_caveats()
-        if c.location == CONSTANTS[store_env]["sso_location"]
-    ]
-    # Request a SSO discharge macaroon.
-    sso_data = {
-        "email": email,
-        "password": getpass.getpass("Password for {}: ".format(email)),
-        "caveat_id": caveat.caveat_id,
-    }
-    response = requests.request(
-        url="{}/api/v2/tokens/discharge".format(
-            CONSTANTS[store_env]["sso_base_url"]
-        ),
-        method="POST",
-        json=sso_data,
-        headers=headers,
-    )
-    # OTP/2FA is optional.
-    if (
-        response.status_code == 401
-        and response.json().get("code") == "TWOFACTOR_REQUIRED"
-    ):
-        sys.stderr.write("Second-factor auth for {}: ".format(store_env))
-        sso_data.update({"otp": input()})
-        response = requests.request(
-            url="{}/api/v2/tokens/discharge".format(
-                CONSTANTS[store_env]["sso_base_url"]
-            ),
-            method="POST",
-            json=sso_data,
-            headers=headers,
-        )
-    discharge = response.json()["discharge_macaroon"]
-
-    return root, discharge
-
-
-def get_store_authorization(
-    email,
-    permissions=None,
-    channels=None,
-    allowed_stores=None,
-    snaps=None,
-    web_login=False,
-    store_env=None,
-):
-    """Return the authentication serialised root and discharge macaroons."""
-    if web_login:
-        root, discharge = _get_store_authorization_using_candid(
-            permissions=permissions,
-            channels=channels,
-            allowed_stores=allowed_stores,
-            snaps=snaps,
-            store_env=store_env,
-        )
-    else:
-        root, discharge = _get_store_authorization(
-            email,
-            permissions=permissions,
-            channels=channels,
-            allowed_stores=allowed_stores,
-            snaps=snaps,
-            store_env=store_env,
-        )
-
-    return root, discharge
-
-
+# Note that store_env only exists to make surl_metrics (and possibly others) happy
 def get_authorization_header(root, discharge, store_env=None):
-    """Bind root and discharge returning the authorization header."""
+    """Return the required authorization header.
+
+    This is done possibly binding the root and discharge"""
     root = Macaroon.deserialize(root)
     if discharge is not None:
         discharge = Macaroon.deserialize(discharge)
-        if discharge.location == CONSTANTS[store_env]["sso_location"]:
-            # U1 SSO macaroons auth
-            bound = root.prepare_for_request(discharge)
-            authorization = "Macaroon root={}, discharge={}".format(
-                root.serialize(), bound.serialize()
-            )
-            return {"Authorization": authorization}
-        else:
-            # to-be-deprecated: kept for backwards compatibility and
-            # existing Candid macaroons
-            return _get_bakery_auth_header(root, discharge)
+        bound = root.prepare_for_request(discharge)
+        authorization = (
+            f"macaroon root={root.serialize()}, discharge={bound.serialize()}"
+        )
+        return {"Authorization": authorization}
     else:
-        # snapstore-only macaroon auth
-        authorization = "Macaroon {}".format(root.serialize())
+        authorization = f"macaroon {root.serialize()}"
         return {"Authorization": authorization}
 
 
-def get_refreshed_discharge(discharge, store_env):
-    headers = DEFAULT_HEADERS.copy()
-    data = {"discharge_macaroon": discharge}
-    response = requests.request(
-        url="{}/api/v2/tokens/refresh".format(
-            CONSTANTS[store_env]["sso_base_url"]
-        ),
-        method="POST",
-        json=data,
-        headers=headers,
+def get_client(web_login, store_env, store_type):
+    common_args = dict(
+        base_url=CONSTANTS[store_env]["sca_base_url"]
+        if store_type == "snapcraft"
+        else CONSTANTS[store_env]["pubgw_base_url"],
+        storage_base_url="https://storage.staging.snapcraftcontent.com",
+        user_agent=DEFAULT_HEADERS["User-Agent"],
+        application_name="surl",
+        environment_auth="CREDENTIALS",
+        ephemeral=True,
     )
-    return response.json()["discharge_macaroon"]
+    if web_login:
+        return StoreClient(
+            endpoints=endpoints.SNAP_STORE
+            if store_type == "snapcraft"
+            else endpoints.CHARMHUB,
+            **common_args,
+        )
+    else:
+        return UbuntuOneStoreClient(
+            endpoints=endpoints.U1_SNAP_STORE,
+            auth_url=CONSTANTS[store_env]["sso_base_url"],
+            **common_args,
+        )
 
 
 def store_request(config, **kwargs):
     r = requests.request(**kwargs)
-
-    # Refresh discharge if necessary.
-    # (only for U1 SSO macaroons for now, in practice)
-    if r.headers.get("WWW-Authenticate") == "Macaroon needs_refresh=1":
-        discharge = get_refreshed_discharge(config.discharge, config.store_env)
-        config = ClientConfig(
-            root=config.root,
-            discharge=discharge,
-            store_env=config.store_env,
-            path=config.path,
-        )
-        save_config(config)
-        headers = kwargs.get("headers", {})
-        auth_header = get_authorization_header(
-            config.root, config.discharge, store_env=config.store_env
-        )
-        headers.update(auth_header)
-        r = requests.request(**kwargs)
 
     return r
 
@@ -516,119 +427,39 @@ def main():
     parser = argparse.ArgumentParser(description="S(tore)URL ...")
 
     try:
-        config, remainder = get_config_from_cli(parser, auth_dir)
+        url, config, remainder = get_config_from_cli(parser, auth_dir)
     except CliError as e:
         print(e)
         return 1
     except CliDone:
         return 0
 
-    # Extra CLI options
-    parser.add_argument(
-        "-v",
-        "--debug",
-        action="store_true",
-        help="Prints request and response headers",
-    )
-
-    # Request options.
-    parser.add_argument(
-        "-H", "--header", action="append", default=[], dest="headers"
-    )
-    parser.add_argument(
-        "-X",
-        "--method",
-        default="GET",
-        choices=["GET", "PATCH", "POST", "PUT"],
-    )
-    parser.add_argument("-d", "--data")
-
-    parser.add_argument("url", nargs="?")
-
-    args = parser.parse_args(remainder)
-
-    if args.debug:
-        # # The http.client logger pollutes stdout.
-        # from http.client import HTTPConnection
-        # HTTPConnection.debuglevel = 1
-        import logging
-
-        handler = requests.packages.urllib3.add_stderr_logger()
-        handler.setFormatter(logging.Formatter("\033[1m%(message)s\033[0m"))
-
     headers = DEFAULT_HEADERS.copy()
-    if args.url is None:
-        url = "{}/api/v2/tokens/whoami".format(
-            CONSTANTS[config.store_env]["sca_base_url"]
-        )
-        method = "GET"
-        data = None
-    else:
-        url = args.url
-        if args.data is not None:
-            if args.data.startswith("@"):
-                with open(os.path.expanduser(args.data[1:])) as fd:
-                    data = json.load(fd)
-            else:
-                data = json.loads(args.data)
-            method = args.method
-            if args.method == "GET":
-                method = "POST"
+    if url is None:
+        if config.store_type == "snapcraft":
+            url = "{}/api/v2/tokens/whoami".format(
+                CONSTANTS[config.store_env]["sca_base_url"]
+            )
         else:
-            data = None
-            method = args.method
-    auth_header = get_authorization_header(
-        config.root, config.discharge, store_env=config.store_env
-    )
+            url = "{}/v1/tokens/whoami".format(
+                CONSTANTS[config.store_env]["pubgw_base_url"]
+            )
+
+    auth_header = get_authorization_header(config.root, config.discharge)
     headers.update(auth_header)
-    for h in args.headers:
-        try:
-            k, v = [t.strip() for t in h.split(":")]
-        except ValueError:
-            print('Invalid header: "{}"'.format(h))
-            return 1
-        headers[k] = v
 
-    if args.debug:
-        print(
-            "\033[1m******** request headers ********\033[0m",
-            file=sys.stderr,
-            flush=True,
-        )
-        for k, v in headers.items():
-            print("{}: {}".format(k, v), file=sys.stderr, flush=True)
-        print(
-            "\033[1m**********************************\033[0m",
-            file=sys.stderr,
-            flush=True,
-        )
+    # -s hides progress bar and errors, -S brings the errors back, -L follows
+    # redirects, and --output - prints binary output to terminal
+    arguments = ["curl", "-sSL", "--output", "-"]
 
-    response = store_request(
-        config, url=url, method=method, json=data, headers=headers, stream=True
-    )
+    for header, value in headers.items():
+        arguments.append("-H")
+        arguments.append(f"{header}: {value}")
 
-    if args.debug:
-        print(
-            "\033[1m******** response headers ********\033[0m",
-            file=sys.stderr,
-            flush=True,
-        )
-        print(
-            "HTTP/1.1 {} {}".format(response.status_code, response.reason),
-            file=sys.stderr,
-            flush=True,
-        )
-        for k, v in response.headers.items():
-            print("{}: {}".format(k, v), file=sys.stderr, flush=True)
-        print(
-            "\033[1m**********************************\033[0m",
-            file=sys.stderr,
-            flush=True,
-        )
+    arguments.extend(remainder)
+    arguments.append(url)
 
-    for chunk in response.iter_content(chunk_size=1024 * 8):
-        if chunk:
-            sys.stdout.buffer.write(chunk)
+    result = subprocess.run(arguments, stderr=subprocess.STDOUT)
 
     # Flush STDOUT carefully, because PIPE might be broken.
     def _noop(*args, **kwargs):
@@ -641,4 +472,4 @@ def main():
         sys.stdout.flush = _noop
         return 1
 
-    return 0
+    return result.returncode

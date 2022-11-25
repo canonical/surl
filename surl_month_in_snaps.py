@@ -337,9 +337,7 @@ def add_channel_map_metrics(snaps, config):
 def sort_channels(snaps):
     for snap in snaps:
         channel_metrics = snap["channelMapWithMetrics"]
-        sorted_channels = sort_metrics_by_channel(
-            channel_metrics["channelMap"]
-        )
+        sorted_channels = sort_metrics_by_channel(channel_metrics["channelMap"])
         channel_metrics["channelMap"] = sorted_channels
 
 
@@ -378,10 +376,7 @@ def add_channel_map_versions(snaps, config) -> list:
         for channel in channels:
             track, risk = channel.split("/")
             for c in snap["channelMapWithMetrics"]["channelMap"]:
-                if (
-                    c["channel"]["track"] == track
-                    and c["channel"]["risk"] == risk
-                ):
+                if c["channel"]["track"] == track and c["channel"]["risk"] == risk:
                     c["versions"] = channels[channel]
                     break
 
@@ -393,15 +388,11 @@ def _refresh_discharge(config):
     )
     headers.update(auth_header)
 
-    url = "{}/dev/api/account".format(
-        surl.CONSTANTS[config.store_env]["sca_base_url"]
-    )
+    url = "{}/dev/api/account".format(surl.CONSTANTS[config.store_env]["sca_base_url"])
 
     r = requests.get(url=url, headers=headers)
     if r.headers.get("WWW-Authenticate") == ("Macaroon needs_refresh=1"):
-        discharge = surl.get_refreshed_discharge(
-            config.discharge, config.store_env
-        )
+        discharge = surl.get_refreshed_discharge(config.discharge, config.store_env)
         config = surl.ClientConfig(
             root=config.root,
             discharge=discharge,

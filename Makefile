@@ -9,7 +9,7 @@ test: $(ENV)
 
 lint: $(ENV)
 	$(MAKE) flake8
-	$(BLACK) --check -l79 -t py38 *.py surl/*.py
+	$(BLACK) --check -t py38 *.py surl/*.py
 
 $(ENV):
 	virtualenv $(ENV) --python=python3
@@ -21,6 +21,6 @@ flake8: $(ENV)
 	$(FLAKE8) *.py surl/*.py
 
 black: $(ENV)
-	$(BLACK) -l79 -t py38 *.py surl/*.py
+	$(BLACK) -t py38 *.py surl/*.py
 
 
