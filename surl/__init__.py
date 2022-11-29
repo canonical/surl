@@ -30,14 +30,6 @@ __all__ = [
     "main",
 ]
 
-
-DEFAULT_HEADERS = {
-    "User-Agent": "surl/{}".format(os.environ.get("SNAP_VERSION", "devel")),
-    "Accept": "application/json, application/hal+json",
-    "Content-Type": "application/json",
-    "Cache-Control": "no-cache",
-}
-
 CONSTANTS = {
     "local": {
         "sso_location": os.environ.get("SURL_SSO_LOCATION", "login.staging.ubuntu.com"),
@@ -434,7 +426,6 @@ def main():
     except CliDone:
         return 0
 
-    headers = DEFAULT_HEADERS.copy()
     if url is None:
         if config.store_type == "snapcraft":
             url = "{}/api/v2/tokens/whoami".format(
@@ -446,15 +437,10 @@ def main():
             )
 
     auth_header = get_authorization_header(config.root, config.discharge)
-    headers.update(auth_header)
 
     # -s hides progress bar and errors, -S brings the errors back, -L follows
     # redirects, and --output - prints binary output to terminal
-    arguments = ["curl", "-sSL", "--output", "-"]
-
-    for header, value in headers.items():
-        arguments.append("-H")
-        arguments.append(f"{header}: {value}")
+    arguments = ["curl", "-sSL", "--output", "-", "-H", f"Authorization: {auth_header['Authorization']}"]
 
     arguments.extend(remainder)
     arguments.append(url)
