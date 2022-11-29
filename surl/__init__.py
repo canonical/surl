@@ -387,7 +387,7 @@ def get_client(web_login, store_env, store_type):
         if store_type == "snapcraft"
         else CONSTANTS[store_env]["pubgw_base_url"],
         storage_base_url="https://storage.staging.snapcraftcontent.com",
-        user_agent=DEFAULT_HEADERS["User-Agent"],
+        user_agent="surl/devel",
         application_name="surl",
         environment_auth="CREDENTIALS",
         ephemeral=True,
@@ -440,7 +440,14 @@ def main():
 
     # -s hides progress bar and errors, -S brings the errors back, -L follows
     # redirects, and --output - prints binary output to terminal
-    arguments = ["curl", "-sSL", "--output", "-", "-H", f"Authorization: {auth_header['Authorization']}"]
+    arguments = [
+        "curl",
+        "-sSL",
+        "--output",
+        "-",
+        "-H",
+        f"Authorization: {auth_header['Authorization']}",
+    ]
 
     arguments.extend(remainder)
     arguments.append(url)
