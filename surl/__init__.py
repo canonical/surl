@@ -32,10 +32,10 @@ __all__ = [
 
 
 DEFAULT_HEADERS = {
-    "User-Agent": "surl/{}".format(os.environ.get("SNAP_VERSION", "devel")),
-    "Accept": "application/json, application/hal+json",
-    "Content-Type": "application/json",
-    "Cache-Control": "no-cache",
+    "user-agent": "surl/{}".format(os.environ.get("SNAP_VERSION", "devel")),
+    "accept": "application/json, application/hal+json",
+    "content-type": "application/json",
+    "cache-control": "no-cache",
 }
 
 CONSTANTS = {
@@ -395,7 +395,7 @@ def get_client(web_login, store_env, store_type):
         if store_type == "snapcraft"
         else CONSTANTS[store_env]["pubgw_base_url"],
         storage_base_url="https://storage.staging.snapcraftcontent.com",
-        user_agent=DEFAULT_HEADERS["User-Agent"],
+        user_agent=DEFAULT_HEADERS["user-agent"],
         application_name="surl",
         environment_auth="CREDENTIALS",
         ephemeral=True,
@@ -434,6 +434,10 @@ def main():
     except CliDone:
         return 0
 
+    parser.add_argument("-H", "--header", action="append", default=[], dest="headers")
+
+    args, remainder = parser.parse_known_args()
+
     headers = DEFAULT_HEADERS.copy()
     if url is None:
         if config.store_type == "snapcraft":
@@ -451,6 +455,14 @@ def main():
     # -s hides progress bar and errors, -S brings the errors back, -L follows
     # redirects, and --output - prints binary output to terminal
     arguments = ["curl", "-sSL", "--output", "-"]
+
+    for item in args.headers:
+        try:
+            k, v = [t.strip() for t in item.split(":")]
+        except ValueError:
+            print('Invalid header: "{}"'.format(item))
+            return 1
+        headers[k.lower()] = v
 
     for header, value in headers.items():
         arguments.append("-H")
