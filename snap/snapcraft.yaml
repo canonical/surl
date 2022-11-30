@@ -1,5 +1,14 @@
 name: surl
-summary: Ubuntu Store API thin wrapper.
+summary: Tiny client to talk to the Snap Store and Charmhub APIs.
+description: |
+    surl (store curl) is a small wrapper around curl which knows
+    how to negotiate authentication for the Snap Store and Charmhub.
+
+    It can be used as a general CLI client for those service APIs,
+    by specifying the details of the user one wants to work as; surl
+    takes care of negotiating authentication, asking for login credentials,
+    storing and passing around the resulting macaroon tokens.
+
 adopt-info: surl
 confinement: strict
 grade: stable
