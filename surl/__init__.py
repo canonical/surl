@@ -395,7 +395,7 @@ def get_client(web_login, store_env, store_type):
         if store_type == "snapcraft"
         else CONSTANTS[store_env]["pubgw_base_url"],
         storage_base_url="https://storage.staging.snapcraftcontent.com",
-        user_agent="surl/devel",
+        user_agent=DEFAULT_HEADERS["user-agent"],
         application_name="surl",
         environment_auth="CREDENTIALS",
         ephemeral=True,
