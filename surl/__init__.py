@@ -433,10 +433,8 @@ def main():
         return 1
     except CliDone:
         return 0
-    
-    parser.add_argument(
-        "-H", "--header", action="append", default=[], dest="headers"
-    )
+
+    parser.add_argument("-H", "--header", action="append", default=[], dest="headers")
 
     args, remainder = parser.parse_known_args()
 
@@ -454,12 +452,10 @@ def main():
     auth_header = get_authorization_header(config.root, config.discharge)
     headers.update(auth_header)
 
-
     # -s hides progress bar and errors, -S brings the errors back, -L follows
     # redirects, and --output - prints binary output to terminal
     arguments = ["curl", "-sSL", "--output", "-"]
 
-    print()
     for item in args.headers:
         try:
             k, v = [t.strip() for t in item.split(":")]
@@ -474,11 +470,6 @@ def main():
 
     arguments.extend(remainder)
     arguments.append(url)
-
-    print()
-    print()
-    print(arguments)
-    print()
 
     result = subprocess.run(arguments, stderr=subprocess.STDOUT)
 
