@@ -35,7 +35,7 @@ DEFAULT_HEADERS = {
     "user-agent": "surl/{}".format(os.environ.get("SNAP_VERSION", "devel")),
     "accept": "application/json, application/hal+json",
     "content-type": "application/json",
-    "ccache-control": "no-cache",
+    "cache-control": "no-cache",
 }
 
 CONSTANTS = {
