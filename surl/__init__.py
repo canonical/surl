@@ -352,9 +352,6 @@ def get_config_from_cli(parser, auth_dir):
 
 
 def get_environment_from_url(url):
-    if not url:
-        return "staging", "snapcraft"
-
     # The assumption that localhost is SCA can be overriden by a command-line
     # argument.
     if ":8000" in url:
@@ -369,6 +366,8 @@ def get_environment_from_url(url):
         return "production", "snapcraft"
     elif "api.charmhub" in url:
         return "production", "charmhub"
+    else:
+        return "staging", "snapcraft"
 
 
 # Note that store_env only exists to make surl_metrics (and possibly others) happy
