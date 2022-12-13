@@ -131,7 +131,7 @@ def load_config(path):
                 a["root"],
                 a["discharge"],
                 a["store"],
-                a["type"],
+                a.get("type", "snapcraft"),
             )
         except json.decoder.JSONDecodeError:
             raise ConfigError()
