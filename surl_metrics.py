@@ -104,7 +104,7 @@ def main():
 
     auth_dir = os.path.abspath(os.environ.get("SNAP_USER_COMMON", "."))
     try:
-        config, remainder = surl.get_config_from_cli(parser, auth_dir)
+        url, config, remainder = surl.get_config_from_cli(parser, auth_dir)
     except surl.CliError as e:
         print(e)
         return 1
@@ -117,6 +117,9 @@ def main():
         action="store_true",
         help="Prints request and response headers",
     )
+
+    # surl parses the snap_name as the URL, so this just puts the snap_name back
+    remainder.insert(0, url)
 
     parser.add_argument("snap_name")
 
