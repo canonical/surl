@@ -300,7 +300,7 @@ def get_config_from_cli(parser, auth_dir):
 
         store_client = get_client(args.web_login, store_env, store_type)
         if not args.web_login:
-            password = getpass(f"Password for {args.email}: ")
+            password = getpass.getpass(f"Password for {args.email}: ")
             if store_env == "production":
                 otp = input(f"Second-factor auth for {store_env}: ")
 
