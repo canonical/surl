@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="surl",
-    version="1.0.2",
+    version="1.0.3",
     author="Snap Store Team",
     author_email="daniel.manrique@canonical.com",
     url="https://github.com/canonical/surl",

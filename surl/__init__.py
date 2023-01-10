@@ -44,11 +44,15 @@ CONSTANTS = {
         "sso_base_url": os.environ.get(
             "SURL_SSO_BASE_URL", "https://login.staging.ubuntu.com"
         ),
-        "sca_base_url": os.environ.get("SURL_SCA_BASE_URL", "http://0.0.0.0:8000"),
+        "sca_base_url": os.environ.get(
+            "SURL_SCA_BASE_URL", "http://sca-focal.lxd:8000"
+        ),
         "pubgw_base_url": os.environ.get(
             "SURL_PUBGW_BASE_URL", "http://publishergw-focal.lxd:8010"
         ),
-        "api_base_url": os.environ.get("SURL_API_BASE_URL", "http://0.0.0.0:8000"),
+        "api_base_url": os.environ.get(
+            "SURL_API_BASE_URL", "http://sca-focal.lxd:8000"
+        ),
     },
     "staging": {
         "sso_location": "login.staging.ubuntu.com",
