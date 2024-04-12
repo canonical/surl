@@ -404,9 +404,11 @@ def get_authorization_header(root, discharge, store_env=None):
 
 def get_client(web_login, store_env, store_type):
     common_args = dict(
-        base_url=CONSTANTS[store_env]["sca_base_url"]
-        if store_type == "snapcraft"
-        else CONSTANTS[store_env]["pubgw_base_url"],
+        base_url=(
+            CONSTANTS[store_env]["sca_base_url"]
+            if store_type == "snapcraft"
+            else CONSTANTS[store_env]["pubgw_base_url"]
+        ),
         storage_base_url="https://storage.staging.snapcraftcontent.com",
         user_agent=DEFAULT_HEADERS["user-agent"],
         application_name="surl",
@@ -415,9 +417,11 @@ def get_client(web_login, store_env, store_type):
     )
     if web_login:
         return StoreClient(
-            endpoints=endpoints.SNAP_STORE
-            if store_type == "snapcraft"
-            else endpoints.CHARMHUB,
+            endpoints=(
+                endpoints.SNAP_STORE
+                if store_type == "snapcraft"
+                else endpoints.CHARMHUB
+            ),
             **common_args,
         )
     else:
