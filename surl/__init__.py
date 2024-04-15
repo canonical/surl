@@ -317,9 +317,9 @@ def get_config_from_cli(parser, auth_dir):
                 password=password,
             )
         except errors.StoreServerError as err:
-            if not "twofactor-required" in err.error_list:
+            if "twofactor-required" not in err.error_list:
                 raise
-            
+
             otp = input(f"Second-factor auth for {store_env}: ")
             credentials = store_client.login(
                 permissions=permissions,
