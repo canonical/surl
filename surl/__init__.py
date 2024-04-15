@@ -10,7 +10,7 @@ from collections import namedtuple
 
 import requests
 
-from craft_store import endpoints, StoreClient, UbuntuOneStoreClient
+from craft_store import endpoints, StoreClient, UbuntuOneStoreClient, errors
 from pymacaroons import Macaroon
 
 name = "surl"
@@ -316,7 +316,10 @@ def get_config_from_cli(parser, auth_dir):
                 email=args.email,
                 password=password,
             )
-        except Exception:
+        except errors.StoreServerError as err:
+            if not "twofactor-required" in err.error_list:
+                raise
+            
             otp = input(f"Second-factor auth for {store_env}: ")
             credentials = store_client.login(
                 permissions=permissions,
