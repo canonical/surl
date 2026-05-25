@@ -9,9 +9,33 @@ import sys
 from collections import namedtuple
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from craft_store import endpoints, StoreClient, UbuntuOneStoreClient, errors
 from pymacaroons import Macaroon
+
+SURL_CONNECT_TIMEOUT_SECONDS = int(os.environ.get("SURL_CONNECT_TIMEOUT", "10"))
+SURL_READ_TIMEOUT_SECONDS = int(os.environ.get("SURL_READ_TIMEOUT", "10"))
+
+
+class TimeoutHTTPAdapter(HTTPAdapter):
+    """HTTPAdapter with a default timeout for all requests.
+
+    This is particularly useful to close the connection should a server take
+    a long time to respond.
+
+    Timeout values can be overridden with SURL_CONNECT_TIMEOUT_SECONDS and
+    SURL_READ_TIMEOUT_SECONDS environment variables.
+    """
+
+    def __init__(self, *args, timeout=(SURL_CONNECT_TIMEOUT_SECONDS, SURL_READ_TIMEOUT_SECONDS), **kwargs):
+        self.timeout = timeout
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self.timeout
+        return super().send(request, **kwargs)
 
 name = "surl"
 
@@ -419,7 +443,7 @@ def get_client(web_login, store_env, store_type):
         ephemeral=True,
     )
     if web_login:
-        return StoreClient(
+        client = StoreClient(
             endpoints=(
                 endpoints.SNAP_STORE
                 if store_type == "snapcraft"
@@ -428,11 +452,21 @@ def get_client(web_login, store_env, store_type):
             **common_args,
         )
     else:
-        return UbuntuOneStoreClient(
+        client = UbuntuOneStoreClient(
             endpoints=endpoints.U1_SNAP_STORE,
             auth_url=CONSTANTS[store_env]["sso_base_url"],
             **common_args,
         )
+
+    # Preserve craft_store's retry config while adding default timeouts.
+    existing_adapter = client.http_client._session.get_adapter("https://")
+    adapter = TimeoutHTTPAdapter(
+        timeout=(SURL_CONNECT_TIMEOUT_SECONDS, SURL_READ_TIMEOUT_SECONDS),
+        max_retries=existing_adapter.max_retries,
+    )
+    client.http_client._session.mount("http://", adapter)
+    client.http_client._session.mount("https://", adapter)
+    return client
 
 
 def store_request(config, **kwargs):
