@@ -28,7 +28,12 @@ class TimeoutHTTPAdapter(HTTPAdapter):
     SURL_READ_TIMEOUT_SECONDS environment variables.
     """
 
-    def __init__(self, *args, timeout=(SURL_CONNECT_TIMEOUT_SECONDS, SURL_READ_TIMEOUT_SECONDS), **kwargs):
+    def __init__(
+        self,
+        *args,
+        timeout=(SURL_CONNECT_TIMEOUT_SECONDS, SURL_READ_TIMEOUT_SECONDS),
+        **kwargs,
+    ):
         self.timeout = timeout
         super().__init__(*args, **kwargs)
 
@@ -36,6 +41,7 @@ class TimeoutHTTPAdapter(HTTPAdapter):
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self.timeout
         return super().send(request, **kwargs)
+
 
 name = "surl"
 

@@ -12,7 +12,6 @@ import tabulate
 
 import surl
 
-
 logging.basicConfig(format="\033[3;1m%(message)s\033[0m")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
