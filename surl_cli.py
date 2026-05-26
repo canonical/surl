@@ -19,10 +19,10 @@ it's a snap or local diretory if run from source.
 (CAREFULL, IT WILL BE IN PLAINTEXT)
 
 """
+
 import sys
 
 from surl import main
-
 
 if __name__ == "__main__":
     sys.exit(main())
